@@ -428,18 +428,20 @@ class Handler(SimpleHTTPRequestHandler):
                 except Exception: return False
             if not all(valid_contest(v) for v in (aesthetics,communication,samba)):
                 return self.send_json({"ok":False,"error":"Notas de 9,0 a 10,0 em intervalos de 0,1."},400)
-            aesthetics=float(aesthetics) if aesthetics not in (None,"") else None
-            communication=float(communication) if communication not in (None,"") else None
-            samba=float(samba) if samba not in (None,"") else None
             with dbconn() as con:
                 eligible={x["id"]:x for x in contest_eligible(con)}
                 if cid not in eligible: return self.send_json({"ok":False,"error":"Participante não está entre os classificados para o concurso. Confira se a audição está completa e a chegada registrada."},400)
-                if eligible[cid]["category"].strip().casefold()=="passista de ouro": aesthetics=None
+                current=con.execute("SELECT aesthetics_sympathy,communication_elegance,samba FROM contest_scores WHERE candidate_id=? AND evaluator=?",(cid,evaluator)).fetchone()
+                oldvals={k:(current[k] if current else None) for k in ("aesthetics_sympathy","communication_elegance","samba")}
+                submitted={"aesthetics_sympathy":data.get("aesthetics_sympathy"),"communication_elegance":data.get("communication_elegance"),"samba":data.get("samba")}
+                for key,value in submitted.items():
+                    if key in data: oldvals[key]=float(value) if value not in (None,"") else None
+                if eligible[cid]["category"].strip().casefold()=="passista de ouro": oldvals["aesthetics_sympathy"]=None
                 now=datetime.now().astimezone().isoformat(timespec="seconds")
                 con.execute("""INSERT INTO contest_scores(candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at)
                     VALUES(?,?,?,?,?,?) ON CONFLICT(candidate_id,evaluator) DO UPDATE SET
                     aesthetics_sympathy=excluded.aesthetics_sympathy,communication_elegance=excluded.communication_elegance,
-                    samba=excluded.samba,updated_at=excluded.updated_at""",(cid,evaluator,aesthetics,communication,samba,now));con.commit()
+                    samba=excluded.samba,updated_at=excluded.updated_at""",(cid,evaluator,oldvals["aesthetics_sympathy"],oldvals["communication_elegance"],oldvals["samba"],now));con.commit()
             return self.send_json({"ok":True,"updated_at":now})
         if path=="/api/score":
             try: data=self.read_json()
