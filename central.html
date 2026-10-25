@@ -130,14 +130,24 @@ async function refresh(){
  }catch(e){$('dbStatus').textContent='Não foi possível atualizar o painel: '+e.message+'. Confirme que a Central está aberta pelo endereço do servidor local.'}
 }
 function normCategory(value){
- const s=String(value||'').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g,' ');
+ const s=String(value||'').trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ');
  if(s.includes('rainha')) return 'Rainha do Samba';
  if(s.includes('passista')) return 'Passista de Ouro';
  if(s.includes('diva') || s.includes('miss plus') || s.includes('plus size')) return 'Diva do Samba (Plus Size)';
  return String(value||'').trim();
 }
+function candidateCategory(candidate){return normCategory(candidate?.category||candidate?.categoria||candidate?.modalidade||candidate?.category_name||'')}
 function arrivalFor(candidate){return arrivalData[String(candidate.id)]||null}
-function evaluatorProgress(candidate){const stage=$('globalStage')?.value==='concurso'?'CONCURSO':'AUDICAO';const saved=(stage==='concurso'?contestScores:auditionScores)[String(candidate.id)]||{};const roster=stage==='concurso'?contestEvaluatorRoster:evaluatorRoster;const count=criterion=>roster.filter(name=>{const v=saved[name];return v&&v[criterion]!==null&&v[criterion]!==undefined&&v[criterion]!==''}).length;const total=roster.length;const status=(criterion)=>{const n=count(criterion);return `<span class="presence ${total>0&&n>=total?'yes':'no'}">${n}/${total}</span>`};if(stage==='concurso'){const category=normCategory(candidate.category);const aestheticsEligible=category==='Rainha do Samba'||category==='Diva do Samba (Plus Size)';return {aesthetics:aestheticsEligible?status('aesthetics_sympathy'):'—',communication:status('communication_elegance'),samba:status('samba')}}return {aesthetics:'—',communication:status('communication'),samba:status('samba')}}
+function evaluatorProgress(candidate){
+ const stage=$('globalStage')?.value==='concurso'?'CONCURSO':'AUDICAO';
+ const saved=(stage==='concurso'?contestScores:auditionScores)[String(candidate.id)]||{};
+ const roster=stage==='concurso'?contestEvaluatorRoster:evaluatorRoster;
+ const count=criterion=>roster.filter(name=>{const v=saved[name]||saved[String(name).trim()]||Object.entries(saved).find(([k])=>k.trim().toLocaleLowerCase('pt-BR')===String(name).trim().toLocaleLowerCase('pt-BR'))?.[1];return v&&v[criterion]!==null&&v[criterion]!==undefined&&v[criterion]!==''}).length;
+ const total=roster.length;
+ const status=criterion=>{const n=count(criterion);return `<span class="presence ${total>0&&n>=total?'yes':'no'}">${n}/${total}</span>`};
+ if(stage==='CONCURSO'){const category=candidateCategory(candidate);const eligible=category==='Rainha do Samba'||category==='Diva do Samba (Plus Size)';return {aesthetics:eligible?status('aesthetics_sympathy'):'—',communication:status('communication_elegance'),samba:status('samba')}}
+ return {aesthetics:'—',communication:status('communication'),samba:status('samba')};
+}
 function formatTime(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?String(value):d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function render(){
  const stage=$('globalStage')?.value||'audicao';
