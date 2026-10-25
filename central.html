@@ -142,7 +142,8 @@ function evaluatorProgress(candidate){
  const stage=$('globalStage')?.value==='concurso'?'CONCURSO':'AUDICAO';
  const saved=(stage==='concurso'?contestScores:auditionScores)[String(candidate.id)]||{};
  const roster=stage==='concurso'?contestEvaluatorRoster:evaluatorRoster;
- const count=criterion=>roster.filter(name=>{const v=saved[name]||saved[String(name).trim()]||Object.entries(saved).find(([k])=>k.trim().toLocaleLowerCase('pt-BR')===String(name).trim().toLocaleLowerCase('pt-BR'))?.[1];return v&&v[criterion]!==null&&v[criterion]!==undefined&&v[criterion]!==''}).length;
+ const findScore=name=>{const key=String(name||'').trim().toLocaleLowerCase('pt-BR');return Object.entries(saved).find(([k])=>String(k).trim().toLocaleLowerCase('pt-BR')===key)?.[1]||null};
+ const count=criterion=>roster.filter(name=>{const v=findScore(name);return v&&v[criterion]!==null&&v[criterion]!==undefined&&String(v[criterion]).trim()!==''}).length;
  const total=roster.length;
  const status=criterion=>{const n=count(criterion);return `<span class="presence ${total>0&&n>=total?'yes':'no'}">${n}/${total}</span>`};
  if(stage==='CONCURSO'){const category=candidateCategory(candidate);const eligible=category==='Rainha do Samba'||category==='Diva do Samba (Plus Size)';return {aesthetics:eligible?status('aesthetics_sympathy'):'—',communication:status('communication_elegance'),samba:status('samba')}}
