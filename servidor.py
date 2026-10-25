@@ -327,8 +327,12 @@ class Handler(SimpleHTTPRequestHandler):
         if path=="/api/evaluators":
             stage=urlparse(self.path).query.split('stage=')[-1].split('&')[0].upper() if 'stage=' in self.path else 'AUDICAO'
             if stage not in ('AUDICAO','CONCURSO'): stage='AUDICAO'
-            with dbconn() as con:
-                rows=con.execute("SELECT evaluator FROM evaluator_roster WHERE stage=? ORDER BY position,evaluator COLLATE NOCASE",(stage,)).fetchall()
+            if stage=="CONCURSO":
+                with contest_dbconn() as con:
+                    rows=con.execute("SELECT evaluator FROM contest_evaluator_roster ORDER BY position,evaluator COLLATE NOCASE").fetchall()
+            else:
+                with dbconn() as con:
+                    rows=con.execute("SELECT evaluator FROM evaluator_roster WHERE stage='AUDICAO' ORDER BY position,evaluator COLLATE NOCASE").fetchall()
             return self.send_json({"ok":True,"stage":stage,"evaluators":[r['evaluator'] for r in rows]})
         if path=="/api/contest-candidates":
             with contest_dbconn() as con:
@@ -419,10 +423,16 @@ class Handler(SimpleHTTPRequestHandler):
             for name in names:
                 name=str(name).strip()
                 if name and len(name)<=80 and name.casefold() not in [x.casefold() for x in clean]: clean.append(name)
-            with dbconn() as con:
-                con.execute("DELETE FROM evaluator_roster WHERE stage=?",(stage,))
-                con.executemany("INSERT INTO evaluator_roster(stage,evaluator,position) VALUES(?,?,?)",[(stage,n,i) for i,n in enumerate(clean,1)])
-                con.commit()
+            if stage=="CONCURSO":
+                with contest_dbconn() as con:
+                    con.execute("DELETE FROM contest_evaluator_roster")
+                    con.executemany("INSERT INTO contest_evaluator_roster(evaluator,position) VALUES(?,?)",[(n,i) for i,n in enumerate(clean,1)])
+                    con.commit()
+            else:
+                with dbconn() as con:
+                    con.execute("DELETE FROM evaluator_roster WHERE stage='AUDICAO'")
+                    con.executemany("INSERT INTO evaluator_roster(stage,evaluator,position) VALUES('AUDICAO',?,?)",[(n,i) for i,n in enumerate(clean,1)])
+                    con.commit()
             return self.send_json({"ok":True,"stage":stage,"evaluators":clean})
         if path=="/api/clear-contest-scores":
             try: data=self.read_json()
