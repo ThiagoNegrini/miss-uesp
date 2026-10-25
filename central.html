@@ -137,7 +137,7 @@ function normCategory(value){
  return String(value||'').trim();
 }
 function arrivalFor(candidate){return arrivalData[String(candidate.id)]||null}
-function evaluatorProgress(candidate){const key=String(candidate.category||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();const rainhaDiva=/rainha|diva|plus size/.test(key);const saved=contestScores[String(candidate.id)]||{};const count=criterion=>contestEvaluatorRoster.filter(name=>{const v=saved[name];return v&&v[criterion]!==null&&v[criterion]!==undefined}).length;return {aesthetics:rainhaDiva?`${count('aesthetics_sympathy')}/${contestEvaluatorRoster.length}`:'—',communication:`${count('communication_elegance')}/${contestEvaluatorRoster.length}`,samba:`${count('samba')}/${contestEvaluatorRoster.length}`}}
+function evaluatorProgress(candidate){const key=String(candidate.category||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();const rainhaDiva=/rainha|diva|plus size/.test(key);const saved=contestScores[String(candidate.id)]||{};const count=criterion=>Object.values(saved).filter(v=>v&&v[criterion]!==null&&v[criterion]!==undefined&&v[criterion]!=='').length;return {aesthetics:rainhaDiva?`${count('aesthetics_sympathy')}/${contestEvaluatorRoster.length}`:'—',communication:`${count('communication_elegance')}/${contestEvaluatorRoster.length}`,samba:`${count('samba')}/${contestEvaluatorRoster.length}`}}
 function formatTime(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?String(value):d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function render(){
  const stage=$('globalStage')?.value||'audicao';
