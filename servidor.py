@@ -295,6 +295,21 @@ class Handler(SimpleHTTPRequestHandler):
             for r in rs:
                 saved.setdefault(str(r["candidate_id"]),{})[r["evaluator"]]={"aesthetics_sympathy":r["aesthetics_sympathy"],"communication_elegance":r["communication_elegance"],"samba":r["samba"],"updated_at":r["updated_at"]}
             return self.send_json({"ok":True,"candidates":candidates,"scores":saved})
+        if path=="/api/contest-report-data":
+            # Relatório acompanha todos os participantes com chegada confirmada,
+            # sem aplicar quotas/classificação da etapa anterior.
+            with dbconn() as con:
+                candidates=con.execute("""
+                    SELECT c.id,c.category,c.name,c.artistic_name,c.photo,a.arrived_at,a.status
+                    FROM candidates c JOIN arrivals a ON a.candidate_id=c.id
+                    WHERE COALESCE(a.status,'PRESENTE')='PRESENTE'
+                    ORDER BY c.category,c.name COLLATE NOCASE
+                """).fetchall()
+                rs=con.execute("SELECT candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at FROM contest_scores").fetchall()
+            saved={}
+            for r in rs:
+                saved.setdefault(str(r["candidate_id"]),{})[r["evaluator"]]={"aesthetics_sympathy":r["aesthetics_sympathy"],"communication_elegance":r["communication_elegance"],"samba":r["samba"],"updated_at":r["updated_at"]}
+            return self.send_json({"ok":True,"candidates":[dict(x) for x in candidates],"scores":saved})
         if path=="/api/contest-results":
             with dbconn() as con:
                 results=contest_result_rows(con)
