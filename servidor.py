@@ -533,7 +533,6 @@ class Handler(SimpleHTTPRequestHandler):
             try: data=self.read_json()
             except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
             cid=data.get("candidate_id"); evaluator=str(data.get("evaluator","")).strip()
-            aesthetics=data.get("aesthetics_sympathy"); communication=data.get("communication_elegance"); samba=data.get("samba")
             if not isinstance(cid,int): return self.send_json({"ok":False,"error":"Participante inválido."},400)
             if not evaluator or len(evaluator)>80: return self.send_json({"ok":False,"error":"Informe o nome do avaliador (até 80 caracteres)."},400)
             def valid_contest(v):
@@ -541,22 +540,24 @@ class Handler(SimpleHTTPRequestHandler):
                 try:
                     n=float(v); return 9<=n<=10 and abs(round(n*10)-n*10)<1e-7
                 except Exception: return False
-            if not all(valid_contest(v) for v in (aesthetics,communication,samba)):
+            submitted={k:data.get(k) for k in ("aesthetics_sympathy","communication_elegance","samba")}
+            if not all(valid_contest(v) for v in submitted.values()):
                 return self.send_json({"ok":False,"error":"Notas de 9,0 a 10,0 em intervalos de 0,1."},400)
-            with dbconn() as con:
-                eligible={x["id"]:x for x in contest_eligible(con)}
-                if cid not in eligible: return self.send_json({"ok":False,"error":"Participante não está entre os classificados para o concurso. Confira se a audição está completa e a chegada registrada."},400)
+            with contest_dbconn() as con:
+                candidate=con.execute("SELECT category FROM contest_participants WHERE id=?",(cid,)).fetchone()
+                if not candidate: return self.send_json({"ok":False,"error":"Participante não cadastrado no banco do Concurso."},404)
                 current=con.execute("SELECT aesthetics_sympathy,communication_elegance,samba FROM contest_scores WHERE candidate_id=? AND evaluator=?",(cid,evaluator)).fetchone()
-                oldvals={k:(current[k] if current else None) for k in ("aesthetics_sympathy","communication_elegance","samba")}
-                submitted={"aesthetics_sympathy":data.get("aesthetics_sympathy"),"communication_elegance":data.get("communication_elegance"),"samba":data.get("samba")}
-                for key,value in submitted.items():
-                    if key in data: oldvals[key]=float(value) if value not in (None,"") else None
-                if eligible[cid]["category"].strip().casefold()=="passista de ouro": oldvals["aesthetics_sympathy"]=None
+                vals={k:(current[k] if current else None) for k in submitted}
+                for k,v in submitted.items():
+                    if k in data: vals[k]=float(v) if v not in (None,"") else None
+                if (candidate["category"] or "").strip().casefold()=="passista de ouro": vals["aesthetics_sympathy"]=None
                 now=datetime.now().astimezone().isoformat(timespec="seconds")
                 con.execute("""INSERT INTO contest_scores(candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at)
                     VALUES(?,?,?,?,?,?) ON CONFLICT(candidate_id,evaluator) DO UPDATE SET
                     aesthetics_sympathy=excluded.aesthetics_sympathy,communication_elegance=excluded.communication_elegance,
-                    samba=excluded.samba,updated_at=excluded.updated_at""",(cid,evaluator,oldvals["aesthetics_sympathy"],oldvals["communication_elegance"],oldvals["samba"],now));con.commit()
+                    samba=excluded.samba,updated_at=excluded.updated_at""",
+                    (cid,evaluator,vals["aesthetics_sympathy"],vals["communication_elegance"],vals["samba"],now))
+                con.commit()
             return self.send_json({"ok":True,"updated_at":now})
         if path=="/api/score":
             try: data=self.read_json()
