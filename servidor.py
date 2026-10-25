@@ -356,8 +356,34 @@ class Handler(SimpleHTTPRequestHandler):
                 saved.setdefault(str(r["candidate_id"]),{})[r["evaluator"]]={"aesthetics_sympathy":r["aesthetics_sympathy"],"communication_elegance":r["communication_elegance"],"samba":r["samba"],"updated_at":r["updated_at"]}
             return self.send_json({"ok":True,"candidates":[dict(x) for x in candidates],"scores":saved})
         if path=="/api/contest-results":
-            with dbconn() as con:
-                results=contest_result_rows(con)
+            with contest_dbconn() as con:
+                participants=con.execute("SELECT id,category,name FROM contest_participants ORDER BY category,name COLLATE NOCASE").fetchall()
+                score_rows=con.execute("SELECT candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba FROM contest_scores").fetchall()
+            by={}
+            for row in score_rows:
+                by.setdefault(row["candidate_id"],{})[row["evaluator"]]={"aesthetics_sympathy":row["aesthetics_sympathy"],"communication_elegance":row["communication_elegance"],"samba":row["samba"]}
+            results=[]
+            for c in participants:
+                ev=by.get(c["id"],{})
+                passista=(c["category"] or "").strip().casefold()=="passista de ouro"
+                criteria=("communication_elegance","samba") if passista else ("aesthetics_sympathy","communication_elegance","samba")
+                complete=[v for v in ev.values() if all(v[k] is not None for k in criteria)]
+                vals={k:round(sum(v[k] for v in complete)/len(complete),2) if complete else None for k in criteria}
+                total=round(sum(vals[k] for k in criteria),2) if complete else None
+                results.append({"id":c["id"],"category":c["category"],"name":c["name"],
+                    "aesthetics_sympathy":vals.get("aesthetics_sympathy"),"communication_elegance":vals.get("communication_elegance"),
+                    "samba":vals.get("samba"),"total":total,"partial_total":total,
+                    "complete_evaluators":len(complete),"complete":len(complete)>=5,
+                    "status":"Final" if len(complete)>=5 else ("Parcial" if complete else "Aguardando notas"),
+                    "audition_total":None,"title":None})
+            for category in ("Passista de Ouro","Diva do Samba (Plus Size)","Rainha do Samba"):
+                group=[x for x in results if x["category"].strip().casefold()==category.casefold() and x["complete"]]
+                group.sort(key=lambda x:(-x["total"],-(x["samba"] or 0),x["name"].casefold()))
+                for i,x in enumerate(group,1):
+                    x["title"]=({1:"Rainha do Carnaval",2:"Primeira Princesa",3:"Segunda Princesa"}.get(i,f"{i}º lugar") if category=="Rainha do Samba" else
+                                ({1:"Diva Plus Size"}.get(i,f"{i}º lugar") if category=="Diva do Samba (Plus Size)" else
+                                 {1:"Passista de Ouro",2:"Passista de Prata"}.get(i,f"{i}º lugar")))
+            results.sort(key=lambda x:(x["category"].casefold(),x["title"] is None,x["title"] or "",x["name"].casefold()))
             return self.send_json({"ok":True,"results":results})
         if path=="/api/results":
             with dbconn() as con:
@@ -438,11 +464,11 @@ class Handler(SimpleHTTPRequestHandler):
             try: data=self.read_json()
             except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
             if not data.get('confirm'): return self.send_json({"ok":False,"error":"Confirme a limpeza da etapa Concurso."},400)
-            with dbconn() as con:
+            with contest_dbconn() as con:
                 count=con.execute("SELECT COUNT(*) FROM contest_scores").fetchone()[0]
-                roster=con.execute("SELECT COUNT(*) FROM evaluator_roster WHERE stage='CONCURSO'").fetchone()[0]
+                roster=con.execute("SELECT COUNT(*) FROM contest_evaluator_roster").fetchone()[0]
                 con.execute("DELETE FROM contest_scores")
-                con.execute("DELETE FROM evaluator_roster WHERE stage='CONCURSO'")
+                con.execute("DELETE FROM contest_evaluator_roster")
                 con.commit()
             return self.send_json({"ok":True,"deleted":count,"deleted_evaluators":roster,"message":"Notas e cadastro de avaliadores do Concurso apagados; Audição e cadastro de participantes preservados."})
         if path=="/api/clear-scores":
