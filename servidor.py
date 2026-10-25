@@ -529,6 +529,30 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({"ok":True,"published":len(published),"published_at":now,"message":"Resultado da Audição disponibilizado para avaliação do Concurso."})
             except Exception as e:
                 return self.send_json({"ok":False,"error":"Não foi possível disponibilizar os resultados da Audição: "+str(e)},500)
+        if path=="/api/migrate-contest":
+            try: data=self.read_json()
+            except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
+            ids=data.get("candidate_ids")
+            if not isinstance(ids,list) or not ids or any(not isinstance(x,int) for x in ids):
+                return self.send_json({"ok":False,"error":"Informe a lista de IDs aprovados para migrar."},400)
+            ids=list(dict.fromkeys(ids))
+            now=datetime.now().astimezone().isoformat(timespec="seconds")
+            migrated=0
+            with dbconn() as audition:
+                source=audition.execute("SELECT id,category,name,artistic_name,mannequin,shoe_size,body_size,photo FROM candidates WHERE id IN ("+",".join("?" for _ in ids)+")",ids).fetchall()
+                with contest_dbconn() as contest:
+                    for row in source:
+                        category=(row["category"] or "").strip().casefold()
+                        if category not in ("rainha do samba","diva do samba (plus size)","passista de ouro"): continue
+                        contest.execute("""INSERT INTO contest_participants(id,source_candidate_id,category,name,artistic_name,mannequin,shoe_size,body_size,photo,migrated_at)
+                            VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(source_candidate_id) DO UPDATE SET
+                            category=excluded.category,name=excluded.name,artistic_name=excluded.artistic_name,
+                            mannequin=excluded.mannequin,shoe_size=excluded.shoe_size,body_size=excluded.body_size,
+                            photo=excluded.photo""",
+                            (row["id"],row["id"],row["category"],row["name"],row["artistic_name"] or "",row["mannequin"] or "",row["shoe_size"] or "",row["body_size"] or "",row["photo"] or "",now))
+                        migrated+=1
+                    contest.commit()
+            return self.send_json({"ok":True,"migrated":migrated,"message":"Aprovados copiados para o banco do Concurso. Dados operacionais anteriores foram preservados."})
         if path=="/api/contest-score":
             try: data=self.read_json()
             except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
