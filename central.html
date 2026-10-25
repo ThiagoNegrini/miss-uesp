@@ -93,7 +93,7 @@ footer{text-align:center;color:#5b4a4d;font-size:12px;padding:20px;border-top:1p
   <select id="filter"><option value="">Todas as categorias</option><option>Rainha do Samba</option><option>Passista de Ouro</option><option>Diva do Samba (Plus Size)</option></select>
   <button class="secondary" id="exportBtn">Exportar lista CSV</button>
  </div>
- <div class="tablewrap"><table><thead><tr><th>#</th><th>Categoria</th><th>Nome do candidato</th><th>Chegada</th><th>Horário</th><th>Dispositivo</th><th>Avaliadores</th></tr></thead><tbody id="rows"><tr><td colspan="7">Nenhum candidato importado nesta sessão.</td></tr></tbody></table></div>
+ <div class="tablewrap"><table><thead><tr><th>#</th><th>Categoria</th><th>Nome do candidato</th><th>Chegada</th><th>Horário</th><th>Dispositivo</th><th>Progresso por item</th></tr></thead><tbody id="rows"><tr><td colspan="7">Nenhum candidato importado nesta sessão.</td></tr></tbody></table></div>
  <div id="dbStatus" class="status">Conectando ao banco local…</div>
 </section>
 <section class="card" style="margin-top:16px;border-color:#c8102e">
@@ -135,7 +135,7 @@ function normCategory(value){
  return String(value||'').trim();
 }
 function arrivalFor(candidate){return arrivalData[String(candidate.id)]||null}
-function evaluatorProgress(candidate){const saved=auditionScores[String(candidate.id)]||{};const complete=evaluatorRoster.filter(name=>{const v=saved[name];return v&&v.communication!==null&&v.communication!==undefined&&v.samba!==null&&v.samba!==undefined}).length;return `${complete}/${evaluatorRoster.length}`}
+function evaluatorProgress(candidate){const saved=auditionScores[String(candidate.id)]||{};const count=criterion=>evaluatorRoster.filter(name=>{const v=saved[name];return v&&v[criterion]!==null&&v[criterion]!==undefined}).length;return `Comunicação ${count('communication')}/${evaluatorRoster.length}<br>Samba ${count('samba')}/${evaluatorRoster.length}`}
 function formatTime(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?String(value):d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function render(){
  const stage=$('globalStage')?.value||'audicao';
