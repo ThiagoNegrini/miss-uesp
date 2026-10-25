@@ -93,7 +93,7 @@ footer{text-align:center;color:#5b4a4d;font-size:12px;padding:20px;border-top:1p
   <select id="filter"><option value="">Todas as categorias</option><option>Rainha do Samba</option><option>Passista de Ouro</option><option>Diva do Samba (Plus Size)</option></select>
   <button class="secondary" id="exportBtn">Exportar lista CSV</button>
  </div>
- <div class="tablewrap"><table><thead><tr><th>#</th><th>Categoria</th><th>Nome do candidato</th><th>Chegada</th><th>Horário</th><th>Dispositivo</th><th>Estética Corporal/Simpatia</th><th>Comunicação/Elegância</th><th>Samba no pé</th></tr></thead><tbody id="rows"><tr><td colspan="9">Nenhum candidato importado nesta sessão.</td></tr></tbody></table></div>
+ <div class="tablewrap"><table><thead><tr><th>#</th><th>Categoria</th><th>Nome do candidato</th><th>Chegada</th><th>Horário</th><th>Dispositivo</th></tr></thead><tbody id="rows"><tr><td colspan="6">Nenhum candidato importado nesta sessão.</td></tr></tbody></table></div>
  <div id="dbStatus" class="status">Conectando ao banco local…</div>
 </section>
 <section class="card" style="margin-top:16px;border-color:#c8102e">
@@ -174,7 +174,7 @@ function render(){
  const presentes=baseRows.filter(x=>!!arrivalFor(x)).length;
  $('presentes').textContent=presentes; $('aguardando').textContent=Math.max(0,baseRows.length-presentes);
  $('categories').innerHTML=Object.keys(cats).map(c=>{const list=baseRows.filter(x=>normCategory(x.category)===c);const count=list.filter(x=>!!arrivalFor(x)).length;return `<div class="category"><div><b>${c}</b><br><span>${count} presente(s) de ${list.length}</span></div><b>${count}/${list.length}</b></div>`}).join('');
- $('rows').innerHTML=rows.length?rows.map((x,i)=>{const a=arrivalFor(x),p=evaluatorProgress(x);return `<tr><td>${i+1}</td><td>${esc(normCategory(x.category))}</td><td>${esc(x.name)}</td><td><span class="presence ${a?'yes':'no'}">${a?'Presente':'Aguardando'}</span></td><td>${a?esc(formatTime(a.arrived_at)):'—'}</td><td>${a?esc(a.device||'—'):'—'}</td><td>${p.aesthetics}</td><td>${p.communication}</td><td>${p.samba}</td></tr>`}).join(''):'<tr><td colspan="9">Nenhum candidato para este filtro.</td></tr>';
+ $('rows').innerHTML=rows.length?rows.map((x,i)=>{const a=arrivalFor(x);return `<tr><td>${i+1}</td><td>${esc(normCategory(x.category))}</td><td>${esc(x.name)}</td><td><span class="presence ${a?'yes':'no'}">${a?'Presente':'Aguardando'}</span></td><td>${a?esc(formatTime(a.arrived_at)):'—'}</td><td>${a?esc(a.device||'—'):'—'}</td></tr>`}).join(''):'<tr><td colspan="6">Nenhum candidato para este filtro.</td></tr>';
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 $('file').addEventListener('change',()=>{$('importBtn').disabled=!$('file').files.length;$('importStatus').textContent=$('file').files.length?'Arquivo selecionado: '+$('file').files[0].name:'Aguardando arquivo Excel.'});
