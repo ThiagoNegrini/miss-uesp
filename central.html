@@ -117,7 +117,7 @@ let contestScores={};
 let evaluatorRoster=[];
 let contestEvaluatorRoster=[];
 const $=id=>document.getElementById(id);
-async function api(path, options={}){const r=await fetch(path,options);const j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Falha na comunicação');return j}
+async function api(path, options={}){const r=await fetch(path,{cache:'no-store',...options});const j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Falha na comunicação');return j}
 async function loadRoster(){try{const stage=$('rosterStage').value;const j=await api('/api/evaluators?stage='+stage);$('rosterNames').value=(j.evaluators||[]).join('\n');$('rosterStatus').textContent='Lista '+stage+' carregada ('+(j.evaluators||[]).length+' avaliador(es)).'}catch(e){$('rosterStatus').textContent='Falha ao carregar lista: '+e.message}}
 $('loadRoster').addEventListener('click',loadRoster);$('rosterStage').addEventListener('change',loadRoster);$('saveRoster').addEventListener('click',async()=>{try{const stage=$('rosterStage').value,evaluators=$('rosterNames').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const j=await api('/api/evaluators',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage,evaluators})});$('rosterNames').value=j.evaluators.join('\n');$('rosterStatus').textContent='Lista '+stage+' salva: '+j.evaluators.length+' avaliador(es).'}catch(e){$('rosterStatus').textContent='Falha ao salvar: '+e.message}});loadRoster();
 async function refresh(){
