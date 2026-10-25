@@ -613,6 +613,7 @@ def local_ip():
     finally:s.close()
 
 if __name__=="__main__":
+    prepare_database_files()
     init_db()
     ip=local_ip()
     print("\nCentral UESP 2027 iniciada.")
