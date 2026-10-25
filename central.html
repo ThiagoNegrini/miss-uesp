@@ -143,10 +143,18 @@ function evaluatorProgress(candidate){
  const saved=(stage==='concurso'?contestScores:auditionScores)[String(candidate.id)]||{};
  const roster=stage==='concurso'?contestEvaluatorRoster:evaluatorRoster;
  const hasScore=(v,criterion)=>v&&v[criterion]!==null&&v[criterion]!==undefined&&String(v[criterion]).trim()!=='';
- // As notas já vêm agrupadas por participante e avaliador pela API. Contar diretamente
- // os registros salvos evita zerar critérios por divergência textual no nome do avaliador.
- const count=criterion=>Object.values(saved).filter(values=>hasScore(values,criterion)).length;
+ // Cada avaliador cadastrado conta no máximo uma vez. Normalizar nomes evita
+ // diferenças de acento/espaços; limitar ao total impede estados inválidos como 5/2.
+ const evaluatorKey=value=>String(value??'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim().toLocaleLowerCase('pt-BR');
+ const savedByEvaluator=new Map(Object.entries(saved).map(([name,values])=>[evaluatorKey(name),values]));
  const total=roster.length;
+ const count=criterion=>{
+   const matched=roster.filter(name=>hasScore(savedByEvaluator.get(evaluatorKey(name)),criterion)).length;
+   // Se os nomes salvos não coincidirem com o cadastro, usar os registros com nota,
+   // sem nunca ultrapassar a quantidade de avaliadores cadastrados.
+   const raw=Object.values(saved).filter(values=>hasScore(values,criterion)).length;
+   return Math.min(total, matched || raw);
+ };
  const status=criterion=>{const n=count(criterion);return `<span class="presence ${total>0&&n>=total?'yes':'no'}">${n}/${total}</span>`};
  if(stage==='CONCURSO'){const category=candidateCategory(candidate);const eligible=category==='Rainha do Samba'||category==='Diva do Samba (Plus Size)';return {aesthetics:eligible?status('aesthetics_sympathy'):'—',communication:status('communication_elegance'),samba:status('samba')}}
  return {aesthetics:'—',communication:status('communication'),samba:status('samba')};
