@@ -28,11 +28,13 @@ async function generateReport(){
    const applicable=criteriaFor(c), entries=scoreMap[String(c.id)]||{};
    const done=evaluators.filter(ev=>entries[ev]&&applicable.every(k=>entries[ev][k]!=null));
    const incomplete=evaluators.filter(ev=>entries[ev]&&applicable.some(k=>entries[ev][k]!=null)&&!applicable.every(k=>entries[ev][k]!=null));
-   const state=done.length===evaluators.length&&evaluators.length>0?'Completa ('+done.length+'/'+evaluators.length+')':done.length?'Parcial — '+done.length+'/'+evaluators.length+' avaliações completas':'Aguardando notas';\n   const total=done.reduce((sum,ev)=>sum+applicable.reduce((n,k)=>n+Number(entries[ev][k]||0),0),0);
+   const state=done.length===evaluators.length&&evaluators.length>0?'Completa ('+done.length+'/'+evaluators.length+')':done.length?'Parcial — '+done.length+'/'+evaluators.length+' avaliações completas':'Aguardando notas';
+   const total=done.reduce((sum,ev)=>sum+applicable.reduce((n,k)=>n+Number(entries[ev][k]||0),0),0);
    const rows=evaluators.map(ev=>{
     const v=entries[ev]||{};
     const any=applicable.some(k=>v[k]!=null);
-    const evComplete=applicable.every(k=>v[k]!=null);\n    return '<tr><td>'+escHtml(ev)+'</td>'+applicable.map(k=>'<td>'+ (v[k]!=null?fmt(v[k]):'—')+'</td>').join('')+'<td>'+ (evComplete?fmt(applicable.reduce((n,k)=>n+Number(v[k]||0),0)):'—')+'</td><td>'+ (evComplete?'Completa':any?'Incompleta':'Sem registro')+'</td></tr>';
+    const evComplete=applicable.every(k=>v[k]!=null);
+    return '<tr><td>'+escHtml(ev)+'</td>'+applicable.map(k=>'<td>'+ (v[k]!=null?fmt(v[k]):'—')+'</td>').join('')+'<td>'+ (evComplete?fmt(applicable.reduce((n,k)=>n+Number(v[k]||0),0)):'—')+'</td><td>'+ (evComplete?'Completa':any?'Incompleta':'Sem registro')+'</td></tr>';
    }).join('');
    return '<article class="person"><div class="identity">'+(c.photo?'<img class="photo" src="'+escHtml(c.photo)+'" alt="Foto de '+escHtml(c.name)+'">':'<div class="photo missing">Foto não cadastrada</div>')+'<div><h3>'+escHtml(c.name)+' <small>('+escHtml(c.category)+')</small></h3>'+(c.artistic_name?'<p class="artname">Nome artístico: <strong>'+escHtml(c.artistic_name)+'</strong></p>':'<p class="artname">Nome artístico: —</p>')+'<p class="statusline">'+state+(incomplete.length?' · '+incomplete.length+' avaliação(ões) com critério(s) faltando':'')+'</p></div></div><table><thead><tr><th>Avaliador(a)</th>'+applicable.map(k=>'<th>'+escHtml(criterionLabels[criterionKeys.indexOf(k)])+'</th>').join('')+'<th>Total da avaliação</th><th>Status da avaliação</th></tr></thead><tbody>'+rows+'</tbody></table><p class="totalparticipant">Total acumulado das avaliações completas: <strong>'+fmt(total)+'</strong></p></article>';
   }).join('');
