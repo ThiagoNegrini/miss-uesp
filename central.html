@@ -114,7 +114,8 @@ let auditionCandidates=[];
 let arrivalData={};
 let auditionScores={};
 let contestScores={};
-let evaluatorRoster=[];\nlet contestEvaluatorRoster=[];
+let evaluatorRoster=[];
+let contestEvaluatorRoster=[];
 const $=id=>document.getElementById(id);
 async function api(path, options={}){const r=await fetch(path,options);const j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Falha na comunicação');return j}
 async function loadRoster(){try{const stage=$('rosterStage').value;const j=await api('/api/evaluators?stage='+stage);$('rosterNames').value=(j.evaluators||[]).join('\n');$('rosterStatus').textContent='Lista '+stage+' carregada ('+(j.evaluators||[]).length+' avaliador(es)).'}catch(e){$('rosterStatus').textContent='Falha ao carregar lista: '+e.message}}
