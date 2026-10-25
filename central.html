@@ -149,11 +149,10 @@ function evaluatorProgress(candidate){
  const savedByEvaluator=new Map(Object.entries(saved).map(([name,values])=>[evaluatorKey(name),values]));
  const total=roster.length;
  const count=criterion=>{
-   const matched=roster.filter(name=>hasScore(savedByEvaluator.get(evaluatorKey(name)),criterion)).length;
-   // Se os nomes salvos não coincidirem com o cadastro, usar os registros com nota,
-   // sem nunca ultrapassar a quantidade de avaliadores cadastrados.
-   const raw=Object.values(saved).filter(values=>hasScore(values,criterion)).length;
-   return Math.min(total, matched || raw);
+   // A prévia só conta notas vinculadas aos avaliadores atualmente cadastrados.
+   // Não usar fallback por quantidade de registros: isso marca todos os participantes
+   // como avaliados quando existem notas antigas de outros avaliadores.
+   return roster.filter(name=>hasScore(savedByEvaluator.get(evaluatorKey(name)),criterion)).length;
  };
  const status=criterion=>{const n=count(criterion);return `<span class="presence ${total>0&&n>=total?'yes':'no'}">${n}/${total}</span>`};
  if(stage==='CONCURSO'){const category=candidateCategory(candidate);const eligible=category==='Rainha do Samba'||category==='Diva do Samba (Plus Size)';return {aesthetics:eligible?status('aesthetics_sympathy'):'—',communication:status('communication_elegance'),samba:status('samba')}}
