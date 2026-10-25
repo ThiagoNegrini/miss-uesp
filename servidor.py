@@ -9,8 +9,43 @@ from email.policy import default
 from datetime import datetime
 
 HERE=Path(__file__).resolve().parent
-DB=HERE/"uesp_2027.db"
+# banco_audicao.db recebe uma cópia preservada do banco legado uesp_2027.db
+# na primeira inicialização. O banco legado nunca é sobrescrito nem removido.
+LEGACY_DB=HERE/"uesp_2027.db"
+AUDITION_DB=HERE/"banco_audicao.db"
+CONTEST_DB=HERE/"banco_concurso.db"
+DB=AUDITION_DB
 CATEGORIES=["Rainha do Samba","Passista de Ouro","Diva do Samba (Plus Size)"]
+
+def prepare_database_files():
+    """Cria os bancos separados sem descartar dados do banco legado."""
+    import shutil
+    if not AUDITION_DB.exists() and LEGACY_DB.exists():
+        shutil.copy2(LEGACY_DB, AUDITION_DB)
+    con=sqlite3.connect(CONTEST_DB, timeout=30)
+    try:
+        con.execute("PRAGMA journal_mode=WAL")
+        con.executescript("""
+        CREATE TABLE IF NOT EXISTS contest_participants (
+          id INTEGER PRIMARY KEY, source_candidate_id INTEGER NOT NULL UNIQUE,
+          category TEXT NOT NULL, name TEXT NOT NULL, artistic_name TEXT DEFAULT '',
+          mannequin TEXT DEFAULT '', shoe_size TEXT DEFAULT '', body_size TEXT DEFAULT '',
+          photo TEXT DEFAULT '', migrated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS contest_arrivals (
+          candidate_id INTEGER PRIMARY KEY, arrived_at TEXT NOT NULL,
+          device TEXT DEFAULT 'Recepção', status TEXT NOT NULL DEFAULT 'PRESENTE',
+          FOREIGN KEY(candidate_id) REFERENCES contest_participants(id) ON DELETE CASCADE);
+        CREATE TABLE IF NOT EXISTS contest_scores (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL,
+          evaluator TEXT NOT NULL, aesthetics_sympathy REAL, communication_elegance REAL,
+          samba REAL, updated_at TEXT NOT NULL, UNIQUE(candidate_id,evaluator),
+          FOREIGN KEY(candidate_id) REFERENCES contest_participants(id) ON DELETE CASCADE);
+        CREATE TABLE IF NOT EXISTS contest_evaluator_roster (
+          evaluator TEXT PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0);
+        """)
+        con.commit()
+    finally:
+        con.close()
 
 # Serialize schema initialization across request threads. SQLite still handles normal
 # reads/writes with a busy timeout; WAL improves reader/writer coexistence.
