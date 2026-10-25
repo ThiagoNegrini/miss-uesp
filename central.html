@@ -113,6 +113,7 @@ let previewRows=[];
 let auditionCandidates=[];
 let arrivalData={};
 let auditionScores={};
+let contestScores={};
 let evaluatorRoster=[];
 const $=id=>document.getElementById(id);
 async function api(path, options={}){const r=await fetch(path,options);const j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Falha na comunicação');return j}
@@ -121,8 +122,8 @@ $('loadRoster').addEventListener('click',loadRoster);$('rosterStage').addEventLi
 async function refresh(){
  try{
    const stage=$('globalStage')?.value==='concurso'?'CONCURSO':'AUDICAO';
-   const [d,c,a,s,e]=await Promise.all([api('/api/arrival-candidates'),api('/api/candidates'),api('/api/arrivals'),api('/api/scores'),api('/api/evaluators?stage='+stage)]);
-   previewRows=d.candidates||[]; auditionCandidates=c.candidates||[]; arrivalData=a.arrivals||{}; auditionScores=s.scores||{}; evaluatorRoster=e.evaluators||[]; render();
+   const [d,c,a,s,e,contest]=await Promise.all([api('/api/arrival-candidates'),api('/api/candidates'),api('/api/arrivals'),api('/api/scores'),api('/api/evaluators?stage='+stage),api('/api/contest-candidates')]);
+   previewRows=d.candidates||[]; auditionCandidates=c.candidates||[]; arrivalData=a.arrivals||{}; auditionScores=s.scores||{}; contestScores=contest.scores||{}; evaluatorRoster=e.evaluators||[]; render();
    const presentes=previewRows.filter(x=>arrivalFor(x)).length;
    $('dbStatus').textContent='Banco local conectado. '+previewRows.length+' classificado(s) na audição; '+presentes+' chegada(s) confirmada(s). Sincronização automática ativa.';
  }catch(e){$('dbStatus').textContent='Não foi possível atualizar o painel: '+e.message+'. Confirme que a Central está aberta pelo endereço do servidor local.'}
