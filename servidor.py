@@ -67,7 +67,15 @@ def dbconn():
     # contend with other requests, so it is configured during server startup.
     return con
 
+def contest_dbconn():
+    con=sqlite3.connect(CONTEST_DB,timeout=30,factory=_ClosingConnection)
+    con.row_factory=sqlite3.Row
+    con.execute("PRAGMA busy_timeout=30000")
+    return con
+
 def init_db():
+    # Keep the existing Audição schema and records in banco_audicao.db.
+    # Concurso schema is initialized independently by prepare_database_files().
     # Run schema creation and additive migrations once, before the threaded server
     # starts accepting requests. Keep the database's existing records untouched.
     with _DB_INIT_LOCK:
@@ -323,22 +331,19 @@ class Handler(SimpleHTTPRequestHandler):
                 rows=con.execute("SELECT evaluator FROM evaluator_roster WHERE stage=? ORDER BY position,evaluator COLLATE NOCASE",(stage,)).fetchall()
             return self.send_json({"ok":True,"stage":stage,"evaluators":[r['evaluator'] for r in rows]})
         if path=="/api/contest-candidates":
-            with dbconn() as con:
-                candidates=contest_eligible(con)
+            with contest_dbconn() as con:
+                candidates=con.execute("SELECT id,category,name,artistic_name,photo FROM contest_participants ORDER BY category,name COLLATE NOCASE").fetchall()
                 rs=con.execute("SELECT candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at FROM contest_scores").fetchall()
             saved={}
             for r in rs:
                 saved.setdefault(str(r["candidate_id"]),{})[r["evaluator"]]={"aesthetics_sympathy":r["aesthetics_sympathy"],"communication_elegance":r["communication_elegance"],"samba":r["samba"],"updated_at":r["updated_at"]}
-            return self.send_json({"ok":True,"candidates":candidates,"scores":saved})
+            return self.send_json({"ok":True,"candidates":[dict(x) for x in candidates],"scores":saved})
         if path=="/api/contest-report-data":
-            # Lista unificada da apuração: incluir apenas registros de chegada
-            # confirmada ou ausência; manter o status para exibição no resultado/relatório.
-            with dbconn() as con:
+            with contest_dbconn() as con:
                 candidates=con.execute("""
                     SELECT c.id,c.category,c.name,c.artistic_name,c.photo,a.arrived_at,
                            COALESCE(a.status,'PRESENTE') AS arrival_status
-                    FROM candidates c JOIN arrivals a ON a.candidate_id=c.id
-                    WHERE COALESCE(a.status,'PRESENTE') IN ('PRESENTE','AUSENTE')
+                    FROM contest_participants c LEFT JOIN contest_arrivals a ON a.candidate_id=c.id
                     ORDER BY c.category,c.name COLLATE NOCASE
                 """).fetchall()
                 rs=con.execute("SELECT candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at FROM contest_scores").fetchall()
