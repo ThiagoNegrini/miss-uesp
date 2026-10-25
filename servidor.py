@@ -12,49 +12,72 @@ HERE=Path(__file__).resolve().parent
 DB=HERE/"uesp_2027.db"
 CATEGORIES=["Rainha do Samba","Passista de Ouro","Diva do Samba (Plus Size)"]
 
+# Serialize schema initialization across request threads. SQLite still handles normal
+# reads/writes with a busy timeout; WAL improves reader/writer coexistence.
+import threading
+_DB_INIT_LOCK = threading.RLock()
+
+class _ClosingConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            return super().__exit__(exc_type, exc, tb)
+        finally:
+            self.close()
+
 def dbconn():
-    con=sqlite3.connect(DB,timeout=15)
+    con=sqlite3.connect(DB,timeout=30,factory=_ClosingConnection)
     con.row_factory=sqlite3.Row
-    con.execute("""CREATE TABLE IF NOT EXISTS candidates (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, name TEXT NOT NULL,
-      artistic_name TEXT DEFAULT '', mannequin TEXT DEFAULT '', shoe_size TEXT DEFAULT '', body_size TEXT DEFAULT '', photo TEXT DEFAULT '',
-      imported_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(category,name))""")
-    cols={r['name'] for r in con.execute('PRAGMA table_info(candidates)').fetchall()}
-    for col in ('artistic_name','mannequin','shoe_size','body_size','photo'):
-        if col not in cols: con.execute(f"ALTER TABLE candidates ADD COLUMN {col} TEXT DEFAULT ''")
-    con.execute("CREATE TABLE IF NOT EXISTS import_template (id INTEGER PRIMARY KEY CHECK(id=1), filename TEXT, content BLOB)")
-    con.execute("""CREATE TABLE IF NOT EXISTS arrivals (
-      candidate_id INTEGER PRIMARY KEY, arrived_at TEXT NOT NULL, device TEXT DEFAULT 'Recepção',
-      status TEXT NOT NULL DEFAULT 'PRESENTE',
-      FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
-    arrival_cols={r['name'] for r in con.execute('PRAGMA table_info(arrivals)').fetchall()}
-    if 'status' not in arrival_cols:
-        # Migração aditiva: mantém todos os registros de chegada já existentes.
-        con.execute("ALTER TABLE arrivals ADD COLUMN status TEXT NOT NULL DEFAULT 'PRESENTE'")
-    con.execute("""CREATE TABLE IF NOT EXISTS scores (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL,
-      communication REAL, samba REAL, updated_at TEXT NOT NULL, UNIQUE(candidate_id,evaluator),
-      FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
-    con.execute("""CREATE TABLE IF NOT EXISTS contest_scores (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL,
-      aesthetics_sympathy REAL, communication_elegance REAL, samba REAL, updated_at TEXT NOT NULL,
-      UNIQUE(candidate_id,evaluator), FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
-    con.execute("""CREATE TABLE IF NOT EXISTS audition_result_publication (
-      candidate_id INTEGER PRIMARY KEY, category TEXT NOT NULL, position INTEGER NOT NULL,
-      published_at TEXT NOT NULL, FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
-    con.execute("""CREATE TABLE IF NOT EXISTS evaluator_roster (
-      stage TEXT NOT NULL CHECK(stage IN ('AUDICAO','CONCURSO')),
-      evaluator TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY(stage,evaluator))""")
-    # Migração de avaliadores já cadastrados: popula as listas por etapa uma única vez.
-    for stage, table in (("AUDICAO", "scores"), ("CONCURSO", "contest_scores")):
-        if con.execute("SELECT 1 FROM evaluator_roster WHERE stage=? LIMIT 1", (stage,)).fetchone() is None:
-            names=con.execute(f"SELECT DISTINCT evaluator FROM {table} ORDER BY evaluator COLLATE NOCASE").fetchall()
-            con.executemany("INSERT OR IGNORE INTO evaluator_roster(stage,evaluator,position) VALUES(?,?,?)",
-                            [(stage, row[0], i) for i,row in enumerate(names,1)])
-    con.execute("CREATE TABLE IF NOT EXISTS active_stage (id INTEGER PRIMARY KEY CHECK(id=1), stage TEXT NOT NULL CHECK(stage IN ('AUDICAO','CONCURSO')))")
-    con.execute("INSERT OR IGNORE INTO active_stage(id,stage) VALUES(1,'AUDICAO')")
+    con.execute("PRAGMA busy_timeout=30000")
+    # The journal mode is persistent; setting it on every connection can itself
+    # contend with other requests, so it is configured during server startup.
     return con
+
+def init_db():
+    # Run schema creation and additive migrations once, before the threaded server
+    # starts accepting requests. Keep the database's existing records untouched.
+    with _DB_INIT_LOCK:
+        con=sqlite3.connect(DB,timeout=30,factory=_ClosingConnection)
+        con.row_factory=sqlite3.Row
+        con.execute("PRAGMA busy_timeout=30000")
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute("""CREATE TABLE IF NOT EXISTS candidates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, name TEXT NOT NULL,
+          artistic_name TEXT DEFAULT '', mannequin TEXT DEFAULT '', shoe_size TEXT DEFAULT '', body_size TEXT DEFAULT '', photo TEXT DEFAULT '',
+          imported_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(category,name))""")
+        cols={r['name'] for r in con.execute('PRAGMA table_info(candidates)').fetchall()}
+        for col in ('artistic_name','mannequin','shoe_size','body_size','photo'):
+            if col not in cols: con.execute(f"ALTER TABLE candidates ADD COLUMN {col} TEXT DEFAULT ''")
+        con.execute("CREATE TABLE IF NOT EXISTS import_template (id INTEGER PRIMARY KEY CHECK(id=1), filename TEXT, content BLOB)")
+        con.execute("""CREATE TABLE IF NOT EXISTS arrivals (
+          candidate_id INTEGER PRIMARY KEY, arrived_at TEXT NOT NULL, device TEXT DEFAULT 'Recepção',
+          status TEXT NOT NULL DEFAULT 'PRESENTE',
+          FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
+        arrival_cols={r['name'] for r in con.execute('PRAGMA table_info(arrivals)').fetchall()}
+        if 'status' not in arrival_cols:
+            con.execute("ALTER TABLE arrivals ADD COLUMN status TEXT NOT NULL DEFAULT 'PRESENTE'")
+        con.execute("""CREATE TABLE IF NOT EXISTS scores (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL,
+          communication REAL, samba REAL, updated_at TEXT NOT NULL, UNIQUE(candidate_id,evaluator),
+          FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS contest_scores (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL,
+          aesthetics_sympathy REAL, communication_elegance REAL, samba REAL, updated_at TEXT NOT NULL,
+          UNIQUE(candidate_id,evaluator), FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS audition_result_publication (
+          candidate_id INTEGER PRIMARY KEY, category TEXT NOT NULL, position INTEGER NOT NULL,
+          published_at TEXT NOT NULL, FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS evaluator_roster (
+          stage TEXT NOT NULL CHECK(stage IN ('AUDICAO','CONCURSO')),
+          evaluator TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY(stage,evaluator))""")
+        for stage, table in (("AUDICAO", "scores"), ("CONCURSO", "contest_scores")):
+            if con.execute("SELECT 1 FROM evaluator_roster WHERE stage=? LIMIT 1", (stage,)).fetchone() is None:
+                names=con.execute(f"SELECT DISTINCT evaluator FROM {table} ORDER BY evaluator COLLATE NOCASE").fetchall()
+                con.executemany("INSERT OR IGNORE INTO evaluator_roster(stage,evaluator,position) VALUES(?,?,?)",
+                                [(stage, row[0], i) for i,row in enumerate(names,1)])
+        con.execute("CREATE TABLE IF NOT EXISTS active_stage (id INTEGER PRIMARY KEY CHECK(id=1), stage TEXT NOT NULL CHECK(stage IN ('AUDICAO','CONCURSO')))")
+        con.execute("INSERT OR IGNORE INTO active_stage(id,stage) VALUES(1,'AUDICAO')")
+        con.commit()
 
 def parse_multipart(content_type,body):
     msg=BytesParser(policy=default).parsebytes(b"Content-Type: "+content_type.encode("latin-1")+b"\r\nMIME-Version: 1.0\r\n\r\n"+body)
@@ -539,7 +562,7 @@ def local_ip():
     finally:s.close()
 
 if __name__=="__main__":
-    with dbconn():pass
+    init_db()
     ip=local_ip()
     print("\nCentral UESP 2027 iniciada.")
     print("No notebook: http://127.0.0.1:8765/central.html")
