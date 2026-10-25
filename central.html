@@ -114,7 +114,7 @@ let auditionCandidates=[];
 let arrivalData={};
 let auditionScores={};
 let contestScores={};
-let evaluatorRoster=[];
+let evaluatorRoster=[];\nlet contestEvaluatorRoster=[];
 const $=id=>document.getElementById(id);
 async function api(path, options={}){const r=await fetch(path,options);const j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Falha na comunicação');return j}
 async function loadRoster(){try{const stage=$('rosterStage').value;const j=await api('/api/evaluators?stage='+stage);$('rosterNames').value=(j.evaluators||[]).join('\n');$('rosterStatus').textContent='Lista '+stage+' carregada ('+(j.evaluators||[]).length+' avaliador(es)).'}catch(e){$('rosterStatus').textContent='Falha ao carregar lista: '+e.message}}
@@ -122,8 +122,8 @@ $('loadRoster').addEventListener('click',loadRoster);$('rosterStage').addEventLi
 async function refresh(){
  try{
    const stage=$('globalStage')?.value==='concurso'?'CONCURSO':'AUDICAO';
-   const [d,c,a,s,e,contest]=await Promise.all([api('/api/arrival-candidates'),api('/api/candidates'),api('/api/arrivals'),api('/api/scores'),api('/api/evaluators?stage='+stage),api('/api/contest-candidates')]);
-   previewRows=d.candidates||[]; auditionCandidates=c.candidates||[]; arrivalData=a.arrivals||{}; auditionScores=s.scores||{}; contestScores=contest.scores||{}; evaluatorRoster=e.evaluators||[]; render();
+   const [d,c,a,s,e,contest,contestEvaluators]=await Promise.all([api('/api/arrival-candidates'),api('/api/candidates'),api('/api/arrivals'),api('/api/scores'),api('/api/evaluators?stage='+stage),api('/api/contest-candidates'),api('/api/evaluators?stage=CONCURSO')]);
+   previewRows=d.candidates||[]; auditionCandidates=c.candidates||[]; arrivalData=a.arrivals||{}; auditionScores=s.scores||{}; contestScores=contest.scores||{}; evaluatorRoster=e.evaluators||[]; contestEvaluatorRoster=contestEvaluators.evaluators||[]; render();
    const presentes=previewRows.filter(x=>arrivalFor(x)).length;
    $('dbStatus').textContent='Banco local conectado. '+previewRows.length+' classificado(s) na audição; '+presentes+' chegada(s) confirmada(s). Sincronização automática ativa.';
  }catch(e){$('dbStatus').textContent='Não foi possível atualizar o painel: '+e.message+'. Confirme que a Central está aberta pelo endereço do servidor local.'}
@@ -136,7 +136,7 @@ function normCategory(value){
  return String(value||'').trim();
 }
 function arrivalFor(candidate){return arrivalData[String(candidate.id)]||null}
-function evaluatorProgress(candidate){const key=String(candidate.category||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();const rainhaDiva=/rainha|diva|plus size/.test(key);const saved=contestScores[String(candidate.id)]||{};const count=criterion=>evaluatorRoster.filter(name=>{const v=saved[name];return v&&v[criterion]!==null&&v[criterion]!==undefined}).length;return {aesthetics:rainhaDiva?`${count('aesthetics_sympathy')}/${evaluatorRoster.length}`:'—',communication:`${count('communication_elegance')}/${evaluatorRoster.length}`,samba:`${count('samba_no_pe')}/${evaluatorRoster.length}`}}
+function evaluatorProgress(candidate){const key=String(candidate.category||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();const rainhaDiva=/rainha|diva|plus size/.test(key);const saved=contestScores[String(candidate.id)]||{};const count=criterion=>contestEvaluatorRoster.filter(name=>{const v=saved[name];return v&&v[criterion]!==null&&v[criterion]!==undefined}).length;return {aesthetics:rainhaDiva?`${count('aesthetics_sympathy')}/${contestEvaluatorRoster.length}`:'—',communication:`${count('communication_elegance')}/${contestEvaluatorRoster.length}`,samba:`${count('samba')}/${contestEvaluatorRoster.length}`}}
 function formatTime(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?String(value):d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function render(){
  const stage=$('globalStage')?.value||'audicao';
