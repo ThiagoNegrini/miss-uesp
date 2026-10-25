@@ -135,7 +135,7 @@ function normCategory(value){
  return String(value||'').trim();
 }
 function arrivalFor(candidate){return arrivalData[String(candidate.id)]||null}
-function evaluatorProgress(candidate){const saved=auditionScores[String(candidate.id)]||{};const count=criterion=>evaluatorRoster.filter(name=>{const v=saved[name];return v&&v[criterion]!==null&&v[criterion]!==undefined}).length;return `Comunicação ${count('communication')}/${evaluatorRoster.length}<br>Samba ${count('samba')}/${evaluatorRoster.length}`}
+function evaluatorProgress(candidate){const key=String(candidate.category||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();const rainhaDiva=/rainha|diva|plus size/.test(key);const saved=contestScores[String(candidate.id)]||{};const count=criterion=>evaluatorRoster.filter(name=>{const v=saved[name];return v&&v[criterion]!==null&&v[criterion]!==undefined}).length;const items=[...(rainhaDiva?[`Estética + Simpatia ${count('aesthetics_sympathy')}/${evaluatorRoster.length}`]:[]),`Comunicação + Elegância ${count('communication_elegance')}/${evaluatorRoster.length}`,`Samba no pé ${count('samba_no_pe')}/${evaluatorRoster.length}`];return items.join('<br>')}
 function formatTime(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?String(value):d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function render(){
  const stage=$('globalStage')?.value||'audicao';
