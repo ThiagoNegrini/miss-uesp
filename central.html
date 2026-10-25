@@ -93,7 +93,7 @@ footer{text-align:center;color:#5b4a4d;font-size:12px;padding:20px;border-top:1p
   <select id="filter"><option value="">Todas as categorias</option><option>Rainha do Samba</option><option>Passista de Ouro</option><option>Diva do Samba (Plus Size)</option></select>
   <button class="secondary" id="exportBtn">Exportar lista CSV</button>
  </div>
- <div class="tablewrap"><table><thead><tr><th>#</th><th>Categoria</th><th>Nome do candidato</th><th>Chegada</th><th>Horário</th><th>Dispositivo</th></tr></thead><tbody id="rows"><tr><td colspan="6">Nenhum candidato importado nesta sessão.</td></tr></tbody></table></div>
+ <div class="tablewrap"><table><thead><tr><th>#</th><th>Categoria</th><th>Nome do candidato</th><th>Chegada</th><th>Horário</th><th>Dispositivo</th><th>Avaliadores</th></tr></thead><tbody id="rows"><tr><td colspan="7">Nenhum candidato importado nesta sessão.</td></tr></tbody></table></div>
  <div id="dbStatus" class="status">Conectando ao banco local…</div>
 </section>
 <section class="card" style="margin-top:16px;border-color:#c8102e">
@@ -112,14 +112,17 @@ footer{text-align:center;color:#5b4a4d;font-size:12px;padding:20px;border-top:1p
 let previewRows=[];
 let auditionCandidates=[];
 let arrivalData={};
+let auditionScores={};
+let evaluatorRoster=[];
 const $=id=>document.getElementById(id);
 async function api(path, options={}){const r=await fetch(path,options);const j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Falha na comunicação');return j}
 async function loadRoster(){try{const stage=$('rosterStage').value;const j=await api('/api/evaluators?stage='+stage);$('rosterNames').value=(j.evaluators||[]).join('\n');$('rosterStatus').textContent='Lista '+stage+' carregada ('+(j.evaluators||[]).length+' avaliador(es)).'}catch(e){$('rosterStatus').textContent='Falha ao carregar lista: '+e.message}}
 $('loadRoster').addEventListener('click',loadRoster);$('rosterStage').addEventListener('change',loadRoster);$('saveRoster').addEventListener('click',async()=>{try{const stage=$('rosterStage').value,evaluators=$('rosterNames').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const j=await api('/api/evaluators',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage,evaluators})});$('rosterNames').value=j.evaluators.join('\n');$('rosterStatus').textContent='Lista '+stage+' salva: '+j.evaluators.length+' avaliador(es).'}catch(e){$('rosterStatus').textContent='Falha ao salvar: '+e.message}});loadRoster();
 async function refresh(){
  try{
-   const [d,c,a]=await Promise.all([api('/api/arrival-candidates'),api('/api/candidates'),api('/api/arrivals')]);
-   previewRows=d.candidates||[]; auditionCandidates=c.candidates||[]; arrivalData=a.arrivals||{}; render();
+   const stage=$('globalStage')?.value==='concurso'?'CONCURSO':'AUDICAO';
+   const [d,c,a,s,e]=await Promise.all([api('/api/arrival-candidates'),api('/api/candidates'),api('/api/arrivals'),api('/api/scores'),api('/api/evaluators?stage='+stage)]);
+   previewRows=d.candidates||[]; auditionCandidates=c.candidates||[]; arrivalData=a.arrivals||{}; auditionScores=s.scores||{}; evaluatorRoster=e.evaluators||[]; render();
    const presentes=previewRows.filter(x=>arrivalFor(x)).length;
    $('dbStatus').textContent='Banco local conectado. '+previewRows.length+' classificado(s) na audição; '+presentes+' chegada(s) confirmada(s). Sincronização automática ativa.';
  }catch(e){$('dbStatus').textContent='Não foi possível atualizar o painel: '+e.message+'. Confirme que a Central está aberta pelo endereço do servidor local.'}
@@ -132,6 +135,7 @@ function normCategory(value){
  return String(value||'').trim();
 }
 function arrivalFor(candidate){return arrivalData[String(candidate.id)]||null}
+function evaluatorProgress(candidate){const saved=auditionScores[String(candidate.id)]||{};const complete=evaluatorRoster.filter(name=>{const v=saved[name];return v&&v.communication!==null&&v.communication!==undefined&&v.samba!==null&&v.samba!==undefined}).length;return `${complete}/${evaluatorRoster.length}`}
 function formatTime(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?String(value):d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 function render(){
  const stage=$('globalStage')?.value||'audicao';
@@ -148,7 +152,7 @@ function render(){
  const presentes=baseRows.filter(x=>!!arrivalFor(x)).length;
  $('presentes').textContent=presentes; $('aguardando').textContent=Math.max(0,baseRows.length-presentes);
  $('categories').innerHTML=Object.keys(cats).map(c=>{const list=baseRows.filter(x=>normCategory(x.category)===c);const count=list.filter(x=>!!arrivalFor(x)).length;return `<div class="category"><div><b>${c}</b><br><span>${count} presente(s) de ${list.length}</span></div><b>${count}/${list.length}</b></div>`}).join('');
- $('rows').innerHTML=rows.length?rows.map((x,i)=>{const a=arrivalFor(x);return `<tr><td>${i+1}</td><td>${esc(normCategory(x.category))}</td><td>${esc(x.name)}</td><td><span class="presence ${a?'yes':'no'}">${a?'Presente':'Aguardando'}</span></td><td>${a?esc(formatTime(a.arrived_at)):'—'}</td><td>${a?esc(a.device||'—'):'—'}</td></tr>`}).join(''):'<tr><td colspan="6">Nenhum candidato para este filtro.</td></tr>';
+ $('rows').innerHTML=rows.length?rows.map((x,i)=>{const a=arrivalFor(x);return `<tr><td>${i+1}</td><td>${esc(normCategory(x.category))}</td><td>${esc(x.name)}</td><td><span class="presence ${a?'yes':'no'}">${a?'Presente':'Aguardando'}</span></td><td>${a?esc(formatTime(a.arrived_at)):'—'}</td><td>${a?esc(a.device||'—'):'—'}</td><td><strong>${evaluatorProgress(x)}</strong></td></tr>`}).join(''):'<tr><td colspan="7">Nenhum candidato para este filtro.</td></tr>';
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 $('file').addEventListener('change',()=>{$('importBtn').disabled=!$('file').files.length;$('importStatus').textContent=$('file').files.length?'Arquivo selecionado: '+$('file').files[0].name:'Aguardando arquivo Excel.'});
