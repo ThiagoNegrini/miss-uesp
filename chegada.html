@@ -59,7 +59,7 @@ function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
 let candidates=[], arrivals={};
 const params=new URLSearchParams(location.search);const requested=(params.get('categoria')||'').toLowerCase();
 if(categoryAliases[requested]){$('category').value=categoryAliases[requested];$('category').disabled=true}
-async function api(path,options={}){const r=await fetch(path,options);let j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Falha na comunicação');return j}
+async function api(path,options={}){const r=await fetch(path,options);const type=(r.headers.get('content-type')||'').toLowerCase();let j;if(type.includes('application/json')){try{j=await r.json()}catch(_){throw new Error('Resposta JSON inválida em '+path+'. Confira o servidor local.')}}else{const body=(await r.text()).slice(0,180).replace(/\s+/g,' ').trim();throw new Error('A rota '+path+' não retornou JSON (HTTP '+r.status+'). O servidor pode estar desatualizado ou a rota não existir. '+body)}if(!r.ok||j.ok===false)throw new Error(j.error||('Falha HTTP '+r.status+' em '+path));return j}
 async function load(){
  try{
   const [c,a]=await Promise.all([api('/api/arrival-candidates'),api('/api/arrivals')]);
