@@ -183,7 +183,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok":True,"scores":scores})
         if path=="/api/contest-candidates":
             with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con:
-                candidates=contest_eligible(audition_con)
+                candidates=contest_eligible(audition_con)[:25]
                 rs=contest_con.execute("SELECT candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at FROM contest_scores").fetchall()
             saved={}
             for r in rs:
