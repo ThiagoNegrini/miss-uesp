@@ -32,6 +32,8 @@ def dbconn(database=AUDITION_DB):
     con.execute("""CREATE TABLE IF NOT EXISTS evaluator_roster (
       stage TEXT NOT NULL, name TEXT NOT NULL, position INTEGER NOT NULL,
       PRIMARY KEY(stage,name))""")
+    con.execute("""CREATE TABLE IF NOT EXISTS stage_settings (
+      key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
     return con
 
 def parse_multipart(content_type,body):
@@ -147,14 +149,25 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         path=urlparse(self.path).path
         if path=="/api/health": return self.send_json({"ok":True,"service":"UESP 2027","databases":{"audition":AUDITION_DB.name,"contest":CONTEST_DB.name}})
+        if path=="/api/active-stage":
+            with dbconn() as con:
+                row=con.execute("SELECT value FROM stage_settings WHERE key='active_stage'").fetchone()
+            return self.send_json({"ok":True,"stage":row["value"] if row else "AUDICAO"})
         if path=="/api/evaluators":
             stage=(parse_qs(urlparse(self.path).query).get("stage",["AUDICAO"])[0] or "AUDICAO").strip().upper()
             if stage not in ("AUDICAO","CONCURSO"):
                 return self.send_json({"ok":False,"error":"Etapa inválida. Use AUDICAO ou CONCURSO."},400)
             database=AUDITION_DB if stage=="AUDICAO" else CONTEST_DB
             with dbconn(database) as con:
-                rows=con.execute("SELECT name FROM evaluator_roster WHERE stage=? ORDER BY position,name COLLATE NOCASE",(stage,)).fetchall()
+                cols={row["name"] for row in con.execute("PRAGMA table_info(evaluator_roster)").fetchall()}
+                roster_col="name" if "name" in cols else "evaluator"
+                rows=con.execute(f"SELECT {roster_col} AS name FROM evaluator_roster WHERE stage=? ORDER BY position,{roster_col} COLLATE NOCASE",(stage,)).fetchall()
             return self.send_json({"ok":True,"stage":stage,"evaluators":[r["name"] for r in rows]})
+        if path=="/api/arrival-candidates":
+            # A prévia de chegada no modo Concurso usa os participantes com notas salvas na Audição.
+            with dbconn(AUDITION_DB) as con:
+                candidates=contest_eligible(con)
+            return self.send_json({"ok":True,"candidates":candidates})
         if path=="/api/candidates":
             with dbconn() as con:
                 rows=con.execute("SELECT id,category,name FROM candidates ORDER BY category,name COLLATE NOCASE").fetchall()
@@ -223,6 +236,33 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        if path=="/api/active-stage":
+            try: data=self.read_json()
+            except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
+            stage=str(data.get("stage","AUDICAO") or "AUDICAO").strip().upper()
+            if stage not in ("AUDICAO","CONCURSO"):
+                return self.send_json({"ok":False,"error":"Etapa inválida. Use AUDICAO ou CONCURSO."},400)
+            with dbconn() as con:
+                con.execute("INSERT INTO stage_settings(key,value) VALUES('active_stage',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(stage,))
+                con.commit()
+            return self.send_json({"ok":True,"stage":stage})
+        if path=="/api/clear-contest-scores":
+            try: data=self.read_json()
+            except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
+            if data.get("confirm") is not True:
+                return self.send_json({"ok":False,"error":"Confirme a limpeza do Concurso."},400)
+            try:
+                with dbconn(CONTEST_DB) as con:
+                    deleted=con.execute("SELECT COUNT(*) FROM contest_scores").fetchone()[0]
+                    con.execute("DELETE FROM contest_scores")
+                    cols={row["name"] for row in con.execute("PRAGMA table_info(evaluator_roster)").fetchall()}
+                    roster_col="name" if "name" in cols else "evaluator"
+                    deleted_evaluators=con.execute("SELECT COUNT(*) FROM evaluator_roster WHERE stage='CONCURSO'").fetchone()[0]
+                    con.execute("DELETE FROM evaluator_roster WHERE stage='CONCURSO'")
+                    con.commit()
+                return self.send_json({"ok":True,"deleted":deleted,"deleted_evaluators":deleted_evaluators})
+            except Exception as e:
+                return self.send_json({"ok":False,"error":"Não foi possível limpar o Concurso: "+str(e)},500)
         if path=="/api/evaluators":
             try:
                 data=self.read_json()
@@ -247,8 +287,10 @@ class Handler(SimpleHTTPRequestHandler):
                 normalized.append(name)
             database=AUDITION_DB if stage=="AUDICAO" else CONTEST_DB
             with dbconn(database) as con:
+                cols={row["name"] for row in con.execute("PRAGMA table_info(evaluator_roster)").fetchall()}
+                roster_col="name" if "name" in cols else "evaluator"
                 con.execute("DELETE FROM evaluator_roster WHERE stage=?",(stage,))
-                con.executemany("INSERT INTO evaluator_roster(stage,name,position) VALUES(?,?,?)",[(stage,name,i) for i,name in enumerate(normalized)])
+                con.executemany(f"INSERT INTO evaluator_roster(stage,{roster_col},position) VALUES(?,?,?)",[(stage,name,i) for i,name in enumerate(normalized)])
                 con.commit()
             return self.send_json({"ok":True,"stage":stage,"evaluators":normalized})
         if path=="/api/clear-scores":
