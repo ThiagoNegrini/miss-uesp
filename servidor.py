@@ -22,6 +22,15 @@ def dbconn(database=AUDITION_DB):
         con.execute("""CREATE TABLE IF NOT EXISTS candidates (
           id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, name TEXT NOT NULL,
           imported_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(category,name))""")
+        # Campos operacionais usados pela tela de chegada e pelas fotos/relatórios.
+        # ALTER TABLE é aditivo: preserva os candidatos e os dados já existentes.
+        candidate_columns={r[1] for r in con.execute("PRAGMA table_info(candidates)").fetchall()}
+        for column,definition in (
+            ("photo","TEXT"),("artistic_name","TEXT"),("mannequin","TEXT"),
+            ("shoe_size","TEXT"),("body_size","TEXT")
+        ):
+            if column not in candidate_columns:
+                con.execute(f"ALTER TABLE candidates ADD COLUMN {column} {definition}")
         con.execute("""CREATE TABLE IF NOT EXISTS arrivals (
           candidate_id INTEGER PRIMARY KEY, arrived_at TEXT NOT NULL, device TEXT DEFAULT 'Recepção',
           FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
@@ -67,7 +76,8 @@ def contest_eligible(con):
     A lista final é limitada a 25 participantes.
     """
     published=con.execute("""
-        SELECT c.id,c.category,c.name,p.position
+        SELECT c.id,c.category,c.name,c.photo,c.artistic_name,c.mannequin,
+               c.shoe_size,c.body_size,p.position
         FROM audition_result_publication p
         JOIN candidates c ON c.id=p.candidate_id
         ORDER BY p.position ASC, c.category COLLATE NOCASE, c.name COLLATE NOCASE
@@ -96,7 +106,9 @@ def contest_eligible(con):
         audition_samba=round(sum(v["samba"] for v in complete),1) if complete else None
         partial_total=round(sum((v["communication"] or 0)+(v["samba"] or 0) for v in available),1)
         chosen.append({"id":candidate["id"],"category":candidate["category"],"name":candidate["name"],
-            "position":candidate["position"],
+            "photo":candidate["photo"],"artistic_name":candidate["artistic_name"],
+            "mannequin":candidate["mannequin"],"shoe_size":candidate["shoe_size"],
+            "body_size":candidate["body_size"],"position":candidate["position"],
             "audition_total":audition_total,"audition_samba":audition_samba,
             "audition_partial_total":partial_total,
             "audition_complete_evaluators":len(complete),
@@ -211,7 +223,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok":True,"candidates":candidates,"scores":scores})
         if path=="/api/candidates":
             with dbconn() as con:
-                rows=con.execute("SELECT id,category,name FROM candidates ORDER BY category,name COLLATE NOCASE").fetchall()
+                rows=con.execute("""SELECT id,category,name,photo,artistic_name,mannequin,shoe_size,body_size
+                    FROM candidates ORDER BY category,name COLLATE NOCASE""").fetchall()
             return self.send_json({"ok":True,"candidates":[dict(x) for x in rows]})
         if path=="/api/arrivals":
             with dbconn() as con:
@@ -442,15 +455,39 @@ class Handler(SimpleHTTPRequestHandler):
             cid=data.get("candidate_id")
             if not isinstance(cid,int): return self.send_json({"ok":False,"error":"Candidato inválido."},400)
             present=bool(data.get("present"))
+            absent=bool(data.get("absent"))
+            save_only=bool(data.get("save_only"))
+            photo=data.get("photo")
+            if photo is not None:
+                if not isinstance(photo,str) or not photo.startswith("data:image/") or len(photo)>8*1024*1024:
+                    return self.send_json({"ok":False,"error":"Foto inválida ou muito grande (máximo 8 MB)."},400)
             with dbconn() as con:
                 exists=con.execute("SELECT id FROM candidates WHERE id=?",(cid,)).fetchone()
                 if not exists:return self.send_json({"ok":False,"error":"Candidato não encontrado."},404)
+                fields=("artistic_name","mannequin","shoe_size","body_size")
+                assignments=[]; values=[]
+                for field in fields:
+                    if field in data:
+                        assignments.append(field+"=?")
+                        values.append(" ".join(str(data.get(field) or "").split())[:120])
+                if photo is not None:
+                    assignments.append("photo=?"); values.append(photo)
+                if assignments:
+                    con.execute("UPDATE candidates SET "+", ".join(assignments)+" WHERE id=?",(*values,cid))
+                if save_only:
+                    con.commit()
+                    return self.send_json({"ok":True,"saved":True,"photo_saved":photo is not None})
                 if present:
                     now=datetime.now().astimezone().isoformat(timespec="seconds")
                     con.execute("INSERT INTO arrivals(candidate_id,arrived_at,device) VALUES(?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET arrived_at=excluded.arrived_at,device=excluded.device",(cid,now,data.get("device","Recepção")))
                     row=con.execute("SELECT candidate_id,arrived_at,device FROM arrivals WHERE candidate_id=?",(cid,)).fetchone()
                     con.commit()
-                    return self.send_json({"ok":True,"arrival":{"arrived_at":row["arrived_at"],"device":row["device"]}})
+                    return self.send_json({"ok":True,"arrival":{"arrived_at":row["arrived_at"],"device":row["device"],"status":"PRESENTE"}})
+                if absent:
+                    now=datetime.now().astimezone().isoformat(timespec="seconds")
+                    con.execute("INSERT INTO arrivals(candidate_id,arrived_at,device) VALUES(?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET arrived_at=excluded.arrived_at,device=excluded.device",(cid,now,"AUSENTE"))
+                    con.commit()
+                    return self.send_json({"ok":True,"arrival":{"arrived_at":now,"device":"AUSENTE","status":"AUSENTE"}})
                 con.execute("DELETE FROM arrivals WHERE candidate_id=?",(cid,));con.commit()
                 return self.send_json({"ok":True,"arrival":None})
         if path!="/api/import": return self.send_json({"ok":False,"error":"Rota não encontrada"},404)
