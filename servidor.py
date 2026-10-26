@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Central de Controle UESP 2027 — servidor local com controle de chegada."""
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 import sqlite3, json, socket, io
 from pathlib import Path
 from email.parser import BytesParser
@@ -29,6 +29,9 @@ def dbconn(database=AUDITION_DB):
     con.execute("""CREATE TABLE IF NOT EXISTS audition_result_publication (
       candidate_id INTEGER PRIMARY KEY, category TEXT NOT NULL, position INTEGER NOT NULL,
       published_at TEXT NOT NULL, FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS evaluator_roster (
+      stage TEXT NOT NULL, name TEXT NOT NULL, position INTEGER NOT NULL,
+      PRIMARY KEY(stage,name))""")
     return con
 
 def parse_multipart(content_type,body):
@@ -144,6 +147,14 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         path=urlparse(self.path).path
         if path=="/api/health": return self.send_json({"ok":True,"service":"UESP 2027","databases":{"audition":AUDITION_DB.name,"contest":CONTEST_DB.name}})
+        if path=="/api/evaluators":
+            stage=(parse_qs(urlparse(self.path).query).get("stage",["AUDICAO"])[0] or "AUDICAO").strip().upper()
+            if stage not in ("AUDICAO","CONCURSO"):
+                return self.send_json({"ok":False,"error":"Etapa inválida. Use AUDICAO ou CONCURSO."},400)
+            database=AUDITION_DB if stage=="AUDICAO" else CONTEST_DB
+            with dbconn(database) as con:
+                rows=con.execute("SELECT name FROM evaluator_roster WHERE stage=? ORDER BY position,name COLLATE NOCASE",(stage,)).fetchall()
+            return self.send_json({"ok":True,"stage":stage,"evaluators":[r["name"] for r in rows]})
         if path=="/api/candidates":
             with dbconn() as con:
                 rows=con.execute("SELECT id,category,name FROM candidates ORDER BY category,name COLLATE NOCASE").fetchall()
@@ -212,6 +223,34 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        if path=="/api/evaluators":
+            try:
+                data=self.read_json()
+            except Exception as e:
+                return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
+            stage=str(data.get("stage","AUDICAO") or "AUDICAO").strip().upper()
+            if stage not in ("AUDICAO","CONCURSO"):
+                return self.send_json({"ok":False,"error":"Etapa inválida. Use AUDICAO ou CONCURSO."},400)
+            names=data.get("evaluators",[])
+            if not isinstance(names,list) or any(not isinstance(n,str) for n in names):
+                return self.send_json({"ok":False,"error":"Informe uma lista de nomes de avaliadores."},400)
+            normalized=[]
+            seen=set()
+            for item in names:
+                name=" ".join(item.split())
+                key=name.casefold()
+                if not name or key in seen:
+                    continue
+                if len(name)>80:
+                    return self.send_json({"ok":False,"error":"Cada nome pode ter no máximo 80 caracteres."},400)
+                seen.add(key)
+                normalized.append(name)
+            database=AUDITION_DB if stage=="AUDICAO" else CONTEST_DB
+            with dbconn(database) as con:
+                con.execute("DELETE FROM evaluator_roster WHERE stage=?",(stage,))
+                con.executemany("INSERT INTO evaluator_roster(stage,name,position) VALUES(?,?,?)",[(stage,name,i) for i,name in enumerate(normalized)])
+                con.commit()
+            return self.send_json({"ok":True,"stage":stage,"evaluators":normalized})
         if path=="/api/clear-scores":
             # Os nomes dos avaliadores são armazenados na própria tabela scores.
             # Esta operação remove avaliações e nomes, preservando candidatos e chegadas.
