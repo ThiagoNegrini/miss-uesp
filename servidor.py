@@ -46,14 +46,10 @@ def parse_multipart(content_type,body):
 
 
 def contest_eligible(con):
-    """Return all audition participants with any saved audition score data.
-
-    The contest evaluator must not wait for the full number of finalists or for
-    five complete audition evaluations. Available names and partial score data
-    are enough to make a participant selectable in the contest stage.
-    """
+    """Return only participants officially published as classified from the audition."""
     cs=con.execute("""SELECT c.id,c.category,c.name FROM candidates c
-        ORDER BY c.category,c.name COLLATE NOCASE""").fetchall()
+        INNER JOIN audition_result_publication p ON p.candidate_id=c.id
+        ORDER BY c.category,p.position,c.name COLLATE NOCASE""").fetchall()
     rs=con.execute("SELECT candidate_id,evaluator,communication,samba FROM scores").fetchall()
     by={}
     for r in rs:
@@ -164,9 +160,10 @@ class Handler(SimpleHTTPRequestHandler):
                 rows=con.execute(f"SELECT {roster_col} AS name FROM evaluator_roster WHERE stage=? ORDER BY position,{roster_col} COLLATE NOCASE",(stage,)).fetchall()
             return self.send_json({"ok":True,"stage":stage,"evaluators":[r["name"] for r in rows]})
         if path=="/api/arrival-candidates":
-            # A prévia de chegada no modo Concurso usa os participantes com notas salvas na Audição.
+            # A recepção e o controle de chegada devem listar todos os participantes cadastrados.
             with dbconn(AUDITION_DB) as con:
-                candidates=contest_eligible(con)
+                rows=con.execute("SELECT id,category,name FROM candidates ORDER BY category,name COLLATE NOCASE").fetchall()
+                candidates=[dict(row) for row in rows]
             return self.send_json({"ok":True,"candidates":candidates})
         if path=="/api/candidates":
             with dbconn() as con:
