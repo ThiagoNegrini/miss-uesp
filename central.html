@@ -126,7 +126,7 @@ async function refresh(){
    const [d,c,a,s,e,contest,contestEvaluators]=await Promise.all([api('/api/arrival-candidates'),api('/api/candidates'),api('/api/arrivals'),api('/api/scores'),api('/api/evaluators?stage='+stage),api('/api/contest-candidates'),api('/api/evaluators?stage=CONCURSO')]);
    previewRows=d.candidates||[]; auditionCandidates=c.candidates||[]; arrivalData=a.arrivals||{}; auditionScores=s.scores||{}; contestScores=contest.scores||{}; evaluatorRoster=e.evaluators||[]; contestEvaluatorRoster=contestEvaluators.evaluators||[]; render();
    const presentes=previewRows.filter(x=>arrivalFor(x)).length;
-   $('dbStatus').textContent='Banco local conectado. '+previewRows.length+' classificado(s) na audição; '+presentes+' chegada(s) confirmada(s). Sincronização automática ativa.';
+   $('dbStatus').textContent='Banco local conectado. '+previewRows.length+' participante(s) cadastrado(s); '+((contest.candidates||[]).length)+' classificado(s) para o Concurso; '+presentes+' chegada(s) confirmada(s). Sincronização automática ativa.';
  }catch(e){$('dbStatus').textContent='Não foi possível atualizar o painel: '+e.message+'. Confirme que a Central está aberta pelo endereço do servidor local.'}
 }
 function normCategory(value){
