@@ -166,15 +166,24 @@ function render(){
  const q=($('candidateSearch')?.value||'').trim().toLocaleLowerCase('pt-BR');
  $('arrivalTitle').textContent=stage==='concurso'?'3. Classificados na Audição — controle de chegada':'3. Chegada da Audição — controle de chegada';
  $('arrivalHelp').textContent=stage==='concurso'?'Exibe somente candidatas classificadas e publicadas na Audição. Confira as chegadas registradas.':'Exibe a lista geral de candidatas da Audição. Confira as chegadas registradas.';
- let rows=baseRows.filter(x=>(q ? String(x.name||'').toLocaleLowerCase('pt-BR').includes(q) : (!f||normCategory(x.category)===f))); 
+ const categoryOrder=['Passista de Ouro','Diva do Samba (Plus Size)','Rainha do Samba'];
+ let rows=baseRows.filter(x=>(!q||String(x.name||'').toLocaleLowerCase('pt-BR').includes(q))&&(!f||normCategory(x.category)===f));
  rows=rows.filter(x=>!pf||(pf==='present'?!!arrivalFor(x):!arrivalFor(x)));
+ rows.sort((a,b)=>{const ca=normCategory(a.category),cb=normCategory(b.category);const ia=categoryOrder.indexOf(ca),ib=categoryOrder.indexOf(cb);return (ia<0?categoryOrder.length:ia)-(ib<0?categoryOrder.length:ib)||String(a.name||'').localeCompare(String(b.name||''),'pt-BR')});
  $('total').textContent=baseRows.length;
  const cats={'Rainha do Samba':'rainha','Passista de Ouro':'passista','Diva do Samba (Plus Size)':'diva'};
  for(const [c,id] of Object.entries(cats))$(id).textContent=baseRows.filter(x=>normCategory(x.category)===c).length;
  const presentes=baseRows.filter(x=>!!arrivalFor(x)).length;
  $('presentes').textContent=presentes; $('aguardando').textContent=Math.max(0,baseRows.length-presentes);
  $('categories').innerHTML=Object.keys(cats).map(c=>{const list=baseRows.filter(x=>normCategory(x.category)===c);const count=list.filter(x=>!!arrivalFor(x)).length;return `<div class="category"><div><b>${c}</b><br><span>${count} presente(s) de ${list.length}</span></div><b>${count}/${list.length}</b></div>`}).join('');
- $('rows').innerHTML=rows.length?rows.map((x,i)=>{const a=arrivalFor(x);return `<tr><td>${i+1}</td><td>${esc(normCategory(x.category))}</td><td>${esc(x.name)}</td><td><span class="presence ${a?'yes':'no'}">${a?'Presente':'Aguardando'}</span></td><td>${a?esc(formatTime(a.arrived_at)):'—'}</td><td>${a?esc(a.device||'—'):'—'}</td></tr>`}).join(''):'<tr><td colspan="6">Nenhum candidato para este filtro.</td></tr>';
+ if(!rows.length){$('rows').innerHTML='<tr><td colspan="6">Nenhum candidato para este filtro.</td></tr>'}
+ else{
+   let rowNumber=0;
+   const grouped=categoryOrder.map(category=>({category,items:rows.filter(x=>normCategory(x.category)===category)})).filter(group=>group.items.length);
+   const other=rows.filter(x=>!categoryOrder.includes(normCategory(x.category)));
+   if(other.length)grouped.push({category:'Outras categorias',items:other});
+   $('rows').innerHTML=grouped.map(group=>`<tr class="category-group"><td colspan="6" style="background:#fff5f5;color:#a50d25;font-weight:800;border-top:2px solid #e5b7be">${esc(group.category)} — ${group.items.length} participante(s)</td></tr>`+group.items.map(x=>{const a=arrivalFor(x);rowNumber++;return `<tr><td>${rowNumber}</td><td>${esc(normCategory(x.category))}</td><td>${esc(x.name)}</td><td><span class="presence ${a?'yes':'no'}">${a?'Presente':'Aguardando'}</span></td><td>${a?esc(formatTime(a.arrived_at)):'—'}</td><td>${a?esc(a.device||'—'):'—'}</td></tr>`}).join('')).join('');
+ }
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 $('file').addEventListener('change',()=>{$('importBtn').disabled=!$('file').files.length;$('importStatus').textContent=$('file').files.length?'Arquivo selecionado: '+$('file').files[0].name:'Aguardando arquivo Excel.'});
