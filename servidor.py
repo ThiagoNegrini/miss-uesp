@@ -90,13 +90,15 @@ def contest_eligible(con):
             "audition_partial_total":partial_total,
             "audition_complete_evaluators":len(complete),
             "audition_evaluators_with_data":len(available)})
-    # Participants with complete data sort by audition total; those with only
-    # partial data remain available after them, instead of being omitted.
-    chosen.sort(key=lambda x:(x["category"].casefold(),
+    # A classificação do Concurso deve conter exatamente os 25 melhores
+    # classificados da Audição, ordenados pela pontuação total; em empate,
+    # prevalece a nota de Samba no Pé e depois o nome.
+    chosen.sort(key=lambda x:(
         x["audition_total"] is None,
         -(x["audition_total"] if x["audition_total"] is not None else x["audition_partial_total"]),
-        -(x["audition_samba"] or 0),x["name"].casefold()))
-    return chosen
+        -(x["audition_samba"] or 0),
+        x["name"].casefold()))
+    return chosen[:25]
 
 def contest_result_rows(audition_con, contest_con):
     eligible=contest_eligible(audition_con)
