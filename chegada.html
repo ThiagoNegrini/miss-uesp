@@ -64,7 +64,7 @@ async function load(){
  try{
   const [c,a]=await Promise.all([api('/api/arrival-candidates'),api('/api/arrivals')]);
   candidates=c.candidates||[];arrivals=a.arrivals||{};
-  $('status').textContent='Conectado à central. Exibindo somente os 25 classificados na audição.';
+  $('status').textContent=`Conectado à central. Exibindo todos os ${candidates.length} participantes cadastrados.`;
   render();
  }catch(e){$('status').textContent='Sem comunicação com a central: '+e.message+'. Confira se o servidor está aberto e se este tablet está no mesmo Wi-Fi.'}
 }
