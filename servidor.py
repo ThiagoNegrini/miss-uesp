@@ -210,12 +210,8 @@ class Handler(SimpleHTTPRequestHandler):
                             pass
             return self.send_json({"ok":True,"stage":stage,"evaluators":[r["evaluator"] for r in rows]})
         if path=="/api/arrival-candidates":
-            # A chegada deve listar todos os cadastrados (ex.: 44 participantes),
-            # não apenas os 25 classificados para o Concurso.
             with dbconn(AUDITION_DB) as con:
-                rows=con.execute("""SELECT id,category,name,photo,artistic_name,mannequin,shoe_size,body_size
-                    FROM candidates ORDER BY category COLLATE NOCASE,name COLLATE NOCASE""").fetchall()
-                candidates=[dict(r) for r in rows]
+                candidates=contest_eligible(con)
             return self.send_json({"ok":True,"candidates":candidates})
         if path=="/api/contest-report-data":
             with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con:
