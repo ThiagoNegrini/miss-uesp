@@ -29,10 +29,18 @@ def dbconn(database=AUDITION_DB):
           id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL,
           communication REAL, samba REAL, updated_at TEXT NOT NULL, UNIQUE(candidate_id,evaluator),
           FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS evaluator_roster (
+          stage TEXT NOT NULL, position INTEGER NOT NULL, evaluator TEXT NOT NULL,
+          PRIMARY KEY(stage,position), UNIQUE(stage,evaluator))""")
+        con.execute("""CREATE TABLE IF NOT EXISTS app_settings (
+          setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL)""")
         con.execute("""CREATE TABLE IF NOT EXISTS audition_result_publication (
           candidate_id INTEGER PRIMARY KEY, category TEXT NOT NULL, position INTEGER NOT NULL,
           published_at TEXT NOT NULL, FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
     elif target == CONTEST_DB.resolve():
+        con.execute("""CREATE TABLE IF NOT EXISTS evaluator_roster (
+          stage TEXT NOT NULL, position INTEGER NOT NULL, evaluator TEXT NOT NULL,
+          PRIMARY KEY(stage,position), UNIQUE(stage,evaluator))""")
         con.execute("""CREATE TABLE IF NOT EXISTS contest_scores (
           id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL,
           aesthetics_sympathy REAL, communication_elegance REAL, samba REAL, updated_at TEXT NOT NULL,
@@ -155,6 +163,31 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         path=urlparse(self.path).path
         if path=="/api/health": return self.send_json({"ok":True,"service":"UESP 2027","databases":{"audition":AUDITION_DB.name,"contest":CONTEST_DB.name}})
+        if path=="/api/active-stage":
+            with dbconn(AUDITION_DB) as con:
+                row=con.execute("SELECT setting_value FROM app_settings WHERE setting_key='active_stage'").fetchone()
+            return self.send_json({"ok":True,"stage":row["setting_value"] if row else "AUDICAO"})
+        if path=="/api/evaluators":
+            from urllib.parse import parse_qs
+            stage=(parse_qs(urlparse(self.path).query).get("stage",["AUDICAO"])[0] or "AUDICAO").upper()
+            if stage not in ("AUDICAO","CONCURSO"):
+                return self.send_json({"ok":False,"error":"Etapa inválida."},400)
+            database=CONTEST_DB if stage=="CONCURSO" else AUDITION_DB
+            with dbconn(database) as con:
+                rows=con.execute("SELECT evaluator FROM evaluator_roster WHERE stage=? ORDER BY position",(stage,)).fetchall()
+            return self.send_json({"ok":True,"stage":stage,"evaluators":[r["evaluator"] for r in rows]})
+        if path=="/api/arrival-candidates":
+            with dbconn(AUDITION_DB) as con:
+                candidates=contest_eligible(con)
+            return self.send_json({"ok":True,"candidates":candidates})
+        if path=="/api/contest-report-data":
+            with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con:
+                candidates=contest_eligible(audition_con)
+                rows=contest_con.execute("SELECT candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at FROM contest_scores").fetchall()
+            scores={}
+            for r in rows:
+                scores.setdefault(str(r["candidate_id"]),{})[r["evaluator"]]={"aesthetics_sympathy":r["aesthetics_sympathy"],"communication_elegance":r["communication_elegance"],"samba":r["samba"],"updated_at":r["updated_at"]}
+            return self.send_json({"ok":True,"candidates":candidates,"scores":scores})
         if path=="/api/candidates":
             with dbconn() as con:
                 rows=con.execute("SELECT id,category,name FROM candidates ORDER BY category,name COLLATE NOCASE").fetchall()
@@ -177,6 +210,33 @@ class Handler(SimpleHTTPRequestHandler):
             for r in rs:
                 saved.setdefault(str(r["candidate_id"]),{})[r["evaluator"]]={"aesthetics_sympathy":r["aesthetics_sympathy"],"communication_elegance":r["communication_elegance"],"samba":r["samba"],"updated_at":r["updated_at"]}
             return self.send_json({"ok":True,"candidates":candidates,"scores":saved})
+        if path=="/api/export-xlsx":
+            try:
+                import openpyxl
+                from openpyxl.styles import Font, PatternFill
+                wb=openpyxl.Workbook()
+                ws=wb.active; ws.title="Chegadas"
+                ws.append(["Categoria","Participante","Chegada","Dispositivo","Status"])
+                with dbconn(AUDITION_DB) as con:
+                    rows=con.execute("""SELECT c.category,c.name,a.arrived_at,a.device
+                        FROM candidates c LEFT JOIN arrivals a ON a.candidate_id=c.id
+                        ORDER BY c.category,c.name COLLATE NOCASE""").fetchall()
+                for r in rows:
+                    ws.append([r["category"],r["name"],r["arrived_at"] or "",r["device"] or "", "PRESENTE" if r["arrived_at"] else "PENDENTE"])
+                for cell in ws[1]:
+                    cell.font=Font(bold=True,color="FFFFFF");cell.fill=PatternFill("solid",fgColor="C8102E")
+                ws.freeze_panes="A2";ws.auto_filter.ref=ws.dimensions
+                for col in ws.columns:
+                    letter=col[0].column_letter
+                    ws.column_dimensions[letter].width=min(42,max(14,max(len(str(cell.value or "")) for cell in col)+2))
+                out=io.BytesIO();wb.save(out);wb.close();body=out.getvalue()
+                self.send_response(200);self.send_header("Content-Type","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                self.send_header("Content-Disposition",'attachment; filename="controle_chegadas_uesp.xlsx"')
+                self.send_header("Content-Length",str(len(body)));self.send_header("Cache-Control","no-store");self.end_headers();self.wfile.write(body);return
+            except ImportError:
+                return self.send_json({"ok":False,"error":"Falta openpyxl. Execute python -m pip install openpyxl."},500)
+            except Exception as e:
+                return self.send_json({"ok":False,"error":"Não foi possível exportar o Excel: "+str(e)},500)
         if path=="/api/contest-results":
             with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con:
                 results=contest_result_rows(audition_con,contest_con)
@@ -223,6 +283,46 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        if path=="/api/active-stage":
+            try: data=self.read_json()
+            except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
+            stage=str(data.get("stage","")).strip().upper()
+            if stage not in ("AUDICAO","CONCURSO"):
+                return self.send_json({"ok":False,"error":"Etapa deve ser AUDICAO ou CONCURSO."},400)
+            with dbconn(AUDITION_DB) as con:
+                con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('active_stage',?) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value",(stage,))
+                con.commit()
+            return self.send_json({"ok":True,"stage":stage})
+        if path=="/api/evaluators":
+            try: data=self.read_json()
+            except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
+            stage=str(data.get("stage","AUDICAO")).strip().upper()
+            names=data.get("evaluators",[])
+            if stage not in ("AUDICAO","CONCURSO") or not isinstance(names,list):
+                return self.send_json({"ok":False,"error":"Etapa ou lista de avaliadores inválida."},400)
+            cleaned=[]; seen=set()
+            for value in names:
+                name=" ".join(str(value or "").split())
+                key=name.casefold()
+                if not name: continue
+                if len(name)>80: return self.send_json({"ok":False,"error":"Cada nome pode ter até 80 caracteres."},400)
+                if key not in seen:
+                    cleaned.append(name); seen.add(key)
+            if len(cleaned)>100: return self.send_json({"ok":False,"error":"Máximo de 100 avaliadores por etapa."},400)
+            database=CONTEST_DB if stage=="CONCURSO" else AUDITION_DB
+            with dbconn(database) as con:
+                con.execute("DELETE FROM evaluator_roster WHERE stage=?",(stage,))
+                con.executemany("INSERT INTO evaluator_roster(stage,position,evaluator) VALUES(?,?,?)",[(stage,i,name) for i,name in enumerate(cleaned,1)])
+                con.commit()
+            return self.send_json({"ok":True,"stage":stage,"evaluators":cleaned,"saved":len(cleaned)})
+        if path=="/api/clear-contest-scores":
+            with dbconn(CONTEST_DB) as con:
+                deleted=con.execute("SELECT COUNT(*) FROM contest_scores").fetchone()[0]
+                deleted_evaluators=con.execute("SELECT COUNT(*) FROM evaluator_roster WHERE stage='CONCURSO'").fetchone()[0]
+                con.execute("DELETE FROM contest_scores")
+                con.execute("DELETE FROM evaluator_roster WHERE stage='CONCURSO'")
+                con.commit()
+            return self.send_json({"ok":True,"deleted":deleted,"deleted_evaluators":deleted_evaluators,"message":"Dados de avaliação do Concurso removidos; Audição preservada."})
         if path=="/api/clear-scores":
             # Os nomes dos avaliadores são armazenados na própria tabela scores.
             # Esta operação remove avaliações e nomes, preservando candidatos e chegadas.
