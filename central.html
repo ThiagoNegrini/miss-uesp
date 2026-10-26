@@ -198,9 +198,9 @@ $('globalStage').addEventListener('change',()=>applyGlobalStage($('globalStage')
 (async()=>{try{const current=await api('/api/active-stage');await applyGlobalStage(String(current.stage||'AUDICAO').toLowerCase()==='concurso'?'concurso':'audicao',false)}catch(e){console.warn('Não foi possível carregar a etapa do servidor:',e)}})();if($('presenceFilter')) $('presenceFilter').addEventListener('change',render);
 
 $('clearContestBtn').addEventListener('click',async()=>{
- if(!confirm('Confirma apagar TODAS as notas do Concurso e o cadastro de avaliadores do Concurso? As notas e avaliadores da Audição, candidatos, fotos, categorias, ordem e publicação da Audição serão preservados.'))return;
- const b=$('clearContestBtn');b.disabled=true;$('clearContestStatus').textContent='Limpando somente dados do Concurso…';
- try{const j=await api('/api/clear-contest-scores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});$('clearContestStatus').textContent=`Concluído: ${j.deleted} avaliações e ${j.deleted_evaluators} avaliador(es) removidos da etapa Concurso. Audição preservada.`;}catch(e){$('clearContestStatus').textContent='Falha: '+e.message}finally{b.disabled=false}
+ if(!confirm('Confirma apagar TODAS as notas do Concurso? A lista de avaliadores do Concurso, as notas e os avaliadores da Audição, candidatos, fotos, categorias, ordem e publicação da Audição serão preservados.'))return;
+ const b=$('clearContestBtn');b.disabled=true;$('clearContestStatus').textContent='Limpando somente as notas do Concurso…';
+ try{const j=await api('/api/clear-contest-scores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});$('clearContestStatus').textContent=`Concluído: ${j.deleted} nota(s) do Concurso removida(s). Lista de avaliadores e dados da Audição preservados.`;}catch(e){$('clearContestStatus').textContent='Falha: '+e.message}finally{b.disabled=false}
 });
 $('clearScoresBtn').addEventListener('click',async()=>{
  const confirmed=confirm('ATENÇÃO: esta ação reiniciará os dados operacionais como numa nova importação. Serão apagados TODAS as notas e nomes de avaliadores, avaliações do Concurso, chegadas, fotos, nome artístico, manequim, calçado, tamanho de body e resultados publicados. A lista oficial de candidatos e a planilha importada serão preservadas. Esta ação NÃO pode ser desfeita. Deseja continuar?');
