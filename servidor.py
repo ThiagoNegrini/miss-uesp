@@ -350,13 +350,20 @@ class Handler(SimpleHTTPRequestHandler):
                 con.commit()
             return self.send_json({"ok":True,"stage":stage,"evaluators":cleaned,"saved":len(cleaned)})
         if path=="/api/clear-contest-scores":
-            with dbconn(CONTEST_DB) as con:
-                deleted=con.execute("SELECT COUNT(*) FROM contest_scores").fetchone()[0]
-                deleted_evaluators=con.execute("SELECT COUNT(*) FROM evaluator_roster WHERE stage='CONCURSO'").fetchone()[0]
-                con.execute("DELETE FROM contest_scores")
-                con.execute("DELETE FROM evaluator_roster WHERE stage='CONCURSO'")
-                con.commit()
-            return self.send_json({"ok":True,"deleted":deleted,"deleted_evaluators":deleted_evaluators,"message":"Dados de avaliação do Concurso removidos; Audição preservada."})
+            try:
+                data=self.read_json()
+            except Exception as e:
+                return self.send_json({"ok":False,"error":"Confirmação inválida: "+str(e)},400)
+            if not isinstance(data,dict) or data.get("confirm") is not True:
+                return self.send_json({"ok":False,"error":"A exclusão exige confirmação explícita."},400)
+            try:
+                with dbconn(CONTEST_DB) as con:
+                    deleted=con.execute("SELECT COUNT(*) FROM contest_scores").fetchone()[0]
+                    con.execute("DELETE FROM contest_scores")
+                    con.commit()
+                return self.send_json({"ok":True,"deleted":deleted,"message":"Somente as notas do Concurso foram removidas; avaliadores e dados da Audição foram preservados."})
+            except Exception as e:
+                return self.send_json({"ok":False,"error":"Não foi possível limpar as notas do Concurso: "+str(e)},500)
         if path=="/api/clear-scores":
             # Os nomes dos avaliadores são armazenados na própria tabela scores.
             # Esta operação remove avaliações e nomes, preservando candidatos e chegadas.
