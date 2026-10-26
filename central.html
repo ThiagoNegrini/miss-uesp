@@ -166,15 +166,26 @@ function render(){
  const q=($('candidateSearch')?.value||'').trim().toLocaleLowerCase('pt-BR');
  $('arrivalTitle').textContent=stage==='concurso'?'3. Classificados na Audição — controle de chegada':'3. Chegada da Audição — controle de chegada';
  $('arrivalHelp').textContent=stage==='concurso'?'Exibe somente candidatas classificadas e publicadas na Audição. Confira as chegadas registradas.':'Exibe a lista geral de candidatas da Audição. Confira as chegadas registradas.';
- let rows=baseRows.filter(x=>(q ? String(x.name||'').toLocaleLowerCase('pt-BR').includes(q) : (!f||normCategory(x.category)===f))); 
+ const categoryOrder=['Passista de Ouro','Diva do Samba (Plus Size)','Rainha do Samba'];
+ let rows=baseRows.filter(x=>(!f||normCategory(x.category)===f)&&(!q||String(x.name||'').toLocaleLowerCase('pt-BR').includes(q)));
  rows=rows.filter(x=>!pf||(pf==='present'?!!arrivalFor(x):!arrivalFor(x)));
+ rows.sort((a,b)=>{const ca=categoryOrder.indexOf(normCategory(a.category)),cb=categoryOrder.indexOf(normCategory(b.category));return (ca<0?categoryOrder.length:ca)-(cb<0?categoryOrder.length:cb)||String(a.name||'').localeCompare(String(b.name||''),'pt-BR')});
  $('total').textContent=baseRows.length;
  const cats={'Rainha do Samba':'rainha','Passista de Ouro':'passista','Diva do Samba (Plus Size)':'diva'};
  for(const [c,id] of Object.entries(cats))$(id).textContent=baseRows.filter(x=>normCategory(x.category)===c).length;
  const presentes=baseRows.filter(x=>!!arrivalFor(x)).length;
  $('presentes').textContent=presentes; $('aguardando').textContent=Math.max(0,baseRows.length-presentes);
  $('categories').innerHTML=Object.keys(cats).map(c=>{const list=baseRows.filter(x=>normCategory(x.category)===c);const count=list.filter(x=>!!arrivalFor(x)).length;return `<div class="category"><div><b>${c}</b><br><span>${count} presente(s) de ${list.length}</span></div><b>${count}/${list.length}</b></div>`}).join('');
- $('rows').innerHTML=rows.length?rows.map((x,i)=>{const a=arrivalFor(x);return `<tr><td>${i+1}</td><td>${esc(normCategory(x.category))}</td><td>${esc(x.name)}</td><td><span class="presence ${a?'yes':'no'}">${a?'Presente':'Aguardando'}</span></td><td>${a?esc(formatTime(a.arrived_at)):'—'}</td><td>${a?esc(a.device||'—'):'—'}</td></tr>`}).join(''):'<tr><td colspan="6">Nenhum candidato para este filtro.</td></tr>';
+ if(rows.length){
+   let sequence=0;
+   $('rows').innerHTML=categoryOrder.map(category=>{
+     const group=rows.filter(x=>normCategory(x.category)===category);
+     if(!group.length)return '';
+     const presentCount=group.filter(x=>!!arrivalFor(x)).length;
+     const heading=`<tr class="category-group"><th colspan="6" style="text-align:left;background:#fff5f5;color:#a50d25;border-top:3px solid #c8102e">${category} — ${presentCount} presente(s) de ${group.length}</th></tr>`;
+     return heading+group.map(x=>{const a=arrivalFor(x);sequence++;return `<tr><td>${sequence}</td><td>${esc(normCategory(x.category))}</td><td>${esc(x.name)}</td><td><span class="presence ${a?'yes':'no'}">${a?'Presente':'Aguardando'}</span></td><td>${a?esc(formatTime(a.arrived_at)):'—'}</td><td>${a?esc(a.device||'—'):'—'}</td></tr>`}).join('');
+   }).join('');
+ }else $('rows').innerHTML='<tr><td colspan="6">Nenhum candidato para este filtro.</td></tr>';
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 $('file').addEventListener('change',()=>{$('importBtn').disabled=!$('file').files.length;$('importStatus').textContent=$('file').files.length?'Arquivo selecionado: '+$('file').files[0].name:'Aguardando arquivo Excel.'});
