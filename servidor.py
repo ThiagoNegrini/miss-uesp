@@ -14,21 +14,32 @@ CONTEST_DB=HERE/"banco_concurso.db"
 CATEGORIES=["Rainha do Samba","Passista de Ouro","Diva do Samba (Plus Size)"]
 
 def dbconn(database=AUDITION_DB):
-    con=sqlite3.connect(database,timeout=15)
+    """Abre o banco solicitado sem criar tabelas da Audição no banco do Concurso."""
+    target=Path(database).resolve()
+    con=sqlite3.connect(target,timeout=15)
     con.row_factory=sqlite3.Row
-    con.execute("""CREATE TABLE IF NOT EXISTS candidates (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, name TEXT NOT NULL,
-      imported_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(category,name))""")
-    con.execute("""CREATE TABLE IF NOT EXISTS arrivals (
-      candidate_id INTEGER PRIMARY KEY, arrived_at TEXT NOT NULL, device TEXT DEFAULT 'Recepção',
-      FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
-    con.execute("""CREATE TABLE IF NOT EXISTS scores (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL,
-      communication REAL, samba REAL, updated_at TEXT NOT NULL, UNIQUE(candidate_id,evaluator),
-      FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
-    con.execute("""CREATE TABLE IF NOT EXISTS audition_result_publication (
-      candidate_id INTEGER PRIMARY KEY, category TEXT NOT NULL, position INTEGER NOT NULL,
-      published_at TEXT NOT NULL, FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
+    if target == AUDITION_DB.resolve():
+        con.execute("""CREATE TABLE IF NOT EXISTS candidates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, name TEXT NOT NULL,
+          imported_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(category,name))""")
+        con.execute("""CREATE TABLE IF NOT EXISTS arrivals (
+          candidate_id INTEGER PRIMARY KEY, arrived_at TEXT NOT NULL, device TEXT DEFAULT 'Recepção',
+          FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS scores (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL,
+          communication REAL, samba REAL, updated_at TEXT NOT NULL, UNIQUE(candidate_id,evaluator),
+          FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS audition_result_publication (
+          candidate_id INTEGER PRIMARY KEY, category TEXT NOT NULL, position INTEGER NOT NULL,
+          published_at TEXT NOT NULL, FOREIGN KEY(candidate_id) REFERENCES candidates(id) ON DELETE CASCADE)""")
+    elif target == CONTEST_DB.resolve():
+        con.execute("""CREATE TABLE IF NOT EXISTS contest_scores (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL,
+          aesthetics_sympathy REAL, communication_elegance REAL, samba REAL, updated_at TEXT NOT NULL,
+          UNIQUE(candidate_id,evaluator))""")
+    else:
+        con.close()
+        raise ValueError("Banco de dados não reconhecido: "+str(target))
     return con
 
 def parse_multipart(content_type,body):
