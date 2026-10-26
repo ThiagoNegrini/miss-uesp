@@ -60,60 +60,47 @@ def parse_multipart(content_type,body):
 
 
 def contest_eligible(con):
-    """Return all audition participants with any saved audition score data.
+    """Retorna somente os participantes oficialmente publicados para o Concurso.
 
-    The contest evaluator must not wait for the full number of finalists or for
-    five complete audition evaluations. Available names and partial score data
-    are enough to make a participant selectable in the contest stage.
+    A lista de classificação publicada na Audição é a fonte de verdade. Ter
+    notas de Audição, por si só, não classifica uma pessoa para o Concurso.
+    A lista final é limitada a 25 participantes.
     """
-    cs=con.execute("""SELECT c.id,c.category,c.name FROM candidates c
-        ORDER BY c.category,c.name COLLATE NOCASE""").fetchall()
-    rs=con.execute("SELECT candidate_id,evaluator,communication,samba FROM scores").fetchall()
+    published=con.execute("""
+        SELECT c.id,c.category,c.name,p.position
+        FROM audition_result_publication p
+        JOIN candidates c ON c.id=p.candidate_id
+        ORDER BY p.position ASC, c.category COLLATE NOCASE, c.name COLLATE NOCASE
+        LIMIT 25
+    """).fetchall()
+    if not published:
+        return []
+    ids=[r["id"] for r in published]
+    marks=",".join("?" for _ in ids)
+    rs=con.execute(
+        f"SELECT candidate_id,evaluator,communication,samba FROM scores WHERE candidate_id IN ({marks})",
+        ids
+    ).fetchall()
     by={}
     for r in rs:
         by.setdefault(r["candidate_id"],{})[r["evaluator"]]={
             "communication":r["communication"],"samba":r["samba"]}
     chosen=[]
-    for c in cs:
-        # Normaliza acentos, espaços e variantes comuns nos nomes das categorias.
-        import unicodedata
-        category=" ".join(unicodedata.normalize("NFKD", (c["category"] or ""))
-                           .encode("ascii", "ignore").decode("ascii").casefold().split())
-        aliases={
-            "rainha do samba":"rainha do samba",
-            "diva do samba plus size":"diva do samba (plus size)",
-            "diva do samba (plus size)":"diva do samba (plus size)",
-            "passista de ouro":"passista de ouro",
-        }
-        if category not in aliases:
-            continue
-        # O Concurso consulta diretamente as notas da Audição no banco.
-        # A publicação do relatório detalhado não pode ocultar participantes
-        # que tenham notas salvas, por exemplo quando ainda não têm chegada
-        # registrada ou quando a categoria não apareceu no relatório.
-        ev=by.get(c["id"],{})
-        # Only show candidates for whom the audition has at least some actual
-        # score data; do not impose a finalist quota or require five judges.
+    for candidate in published:
+        ev=by.get(candidate["id"],{})
         available=[v for v in ev.values()
                    if v["communication"] is not None or v["samba"] is not None]
-        if not available:
-            continue
         complete=[v for v in available
                   if v["communication"] is not None and v["samba"] is not None]
         audition_total=round(sum(v["communication"]+v["samba"] for v in complete),1) if complete else None
         audition_samba=round(sum(v["samba"] for v in complete),1) if complete else None
         partial_total=round(sum((v["communication"] or 0)+(v["samba"] or 0) for v in available),1)
-        chosen.append({"id":c["id"],"category":c["category"],"name":c["name"],
+        chosen.append({"id":candidate["id"],"category":candidate["category"],"name":candidate["name"],
+            "position":candidate["position"],
             "audition_total":audition_total,"audition_samba":audition_samba,
             "audition_partial_total":partial_total,
             "audition_complete_evaluators":len(complete),
             "audition_evaluators_with_data":len(available)})
-    # Participants with complete data sort by audition total; those with only
-    # partial data remain available after them, instead of being omitted.
-    chosen.sort(key=lambda x:(x["category"].casefold(),
-        x["audition_total"] is None,
-        -(x["audition_total"] if x["audition_total"] is not None else x["audition_partial_total"]),
-        -(x["audition_samba"] or 0),x["name"].casefold()))
     return chosen
 
 def contest_result_rows(audition_con, contest_con):
