@@ -162,6 +162,40 @@ class Handler(SimpleHTTPRequestHandler):
             database=CONTEST_DB if stage=="CONCURSO" else AUDITION_DB
             with dbconn(database) as con:
                 rows=con.execute("SELECT evaluator FROM evaluator_roster WHERE stage=? ORDER BY position",(stage,)).fetchall()
+                # Migração compatível: se a lista da Audição ainda não estiver no
+                # banco novo, recupera apenas os nomes do banco legado, sem alterar
+                # nem apagar o arquivo original. O Concurso permanece independente.
+                if not rows and stage=="AUDICAO":
+                    legacy=HERE/"uesp_2027.db"
+                    if legacy.exists() and legacy.resolve() not in (AUDITION_DB.resolve(),CONTEST_DB.resolve()):
+                        try:
+                            with sqlite3.connect(legacy,timeout=5) as old_con:
+                                exists=old_con.execute(
+                                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='evaluator_roster'"
+                                ).fetchone()
+                                if exists:
+                                    old_rows=old_con.execute(
+                                        "SELECT evaluator FROM evaluator_roster WHERE stage='AUDICAO' ORDER BY position"
+                                    ).fetchall()
+                                    names=[]; seen=set()
+                                    for old_row in old_rows:
+                                        name=" ".join(str(old_row[0] or "").split())
+                                        key=name.casefold()
+                                        if name and key not in seen:
+                                            names.append(name); seen.add(key)
+                                    if names:
+                                        con.executemany(
+                                            "INSERT OR IGNORE INTO evaluator_roster(stage,position,evaluator) VALUES('AUDICAO',?,?)",
+                                            [(i,name) for i,name in enumerate(names,1)]
+                                        )
+                                        con.commit()
+                                        rows=con.execute(
+                                            "SELECT evaluator FROM evaluator_roster WHERE stage=? ORDER BY position",
+                                            (stage,)
+                                        ).fetchall()
+                        except sqlite3.Error:
+                            # A falha na leitura do banco legado não deve derrubar a API.
+                            pass
             return self.send_json({"ok":True,"stage":stage,"evaluators":[r["evaluator"] for r in rows]})
         if path=="/api/arrival-candidates":
             with dbconn(AUDITION_DB) as con:
