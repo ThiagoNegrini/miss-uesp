@@ -59,6 +59,39 @@ def dbconn(database=AUDITION_DB):
         raise ValueError("Banco de dados não reconhecido: "+str(target))
     return con
 
+def ensure_contest_schema(con):
+    con.execute("""CREATE TABLE IF NOT EXISTS contest_participants (id INTEGER PRIMARY KEY AUTOINCREMENT, source_candidate_id INTEGER NOT NULL UNIQUE, category TEXT NOT NULL, name TEXT NOT NULL, artistic_name TEXT DEFAULT '', mannequin TEXT DEFAULT '', shoe_size TEXT DEFAULT '', body_size TEXT DEFAULT '', photo TEXT DEFAULT '', migrated_at TEXT DEFAULT CURRENT_TIMESTAMP, audition_total REAL, audition_samba REAL, audition_partial_total REAL, audition_complete_evaluators INTEGER DEFAULT 0, audition_evaluators_with_data INTEGER DEFAULT 0, source_position INTEGER)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS contest_arrivals (candidate_id INTEGER PRIMARY KEY, arrived_at TEXT NOT NULL, device TEXT DEFAULT 'Recepção', status TEXT DEFAULT 'PRESENTE')""")
+    con.execute("CREATE TABLE IF NOT EXISTS app_settings (setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL)")
+    cols={r[1] for r in con.execute("PRAGMA table_info(contest_participants)")}
+    for name,definition in (("audition_total","REAL"),("audition_samba","REAL"),("audition_partial_total","REAL"),("audition_complete_evaluators","INTEGER DEFAULT 0"),("audition_evaluators_with_data","INTEGER DEFAULT 0"),("source_position","INTEGER")):
+        if name not in cols: con.execute("ALTER TABLE contest_participants ADD COLUMN "+name+" "+definition)
+    con.execute("""CREATE TABLE IF NOT EXISTS contest_scores (id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL, aesthetics_sympathy REAL, communication_elegance REAL, samba REAL, updated_at TEXT NOT NULL, UNIQUE(candidate_id,evaluator))""")
+
+def migrate_published_contest(audition_con, contest_con):
+    ensure_contest_schema(contest_con)
+    candidates=contest_eligible(audition_con)
+    if len(candidates)!=25: raise ValueError("Migração cancelada: são necessários exatamente 25 classificados publicados; encontrados: "+str(len(candidates)))
+    contest_con.execute("BEGIN IMMEDIATE")
+    try:
+        for c in candidates:
+            contest_con.execute("""INSERT INTO contest_participants (source_candidate_id,category,name,artistic_name,mannequin,shoe_size,body_size,photo,audition_total,audition_samba,audition_partial_total,audition_complete_evaluators,audition_evaluators_with_data,source_position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(source_candidate_id) DO UPDATE SET category=excluded.category,name=excluded.name,artistic_name=excluded.artistic_name,mannequin=excluded.mannequin,shoe_size=excluded.shoe_size,body_size=excluded.body_size,photo=excluded.photo,audition_total=excluded.audition_total,audition_samba=excluded.audition_samba,audition_partial_total=excluded.audition_partial_total,audition_complete_evaluators=excluded.audition_complete_evaluators,audition_evaluators_with_data=excluded.audition_evaluators_with_data,source_position=excluded.source_position""",
+              (c["id"],c["category"],c["name"],c.get("artistic_name") or "",c.get("mannequin") or "",c.get("shoe_size") or "",c.get("body_size") or "",c.get("photo") or "",c.get("audition_total"),c.get("audition_samba"),c.get("audition_partial_total"),c.get("audition_complete_evaluators",0),c.get("audition_evaluators_with_data",0),c.get("position")))
+        for score in contest_con.execute("SELECT id,candidate_id,evaluator FROM contest_scores ORDER BY id").fetchall():
+            dest=contest_con.execute("SELECT id FROM contest_participants WHERE source_candidate_id=?",(score["candidate_id"],)).fetchone()
+            if not dest or dest["id"]==score["candidate_id"]: continue
+            exists=contest_con.execute("SELECT id FROM contest_scores WHERE candidate_id=? AND evaluator=?",(dest["id"],score["evaluator"])).fetchone()
+            if exists: contest_con.execute("DELETE FROM contest_scores WHERE id=?",(score["id"],))
+            else: contest_con.execute("UPDATE contest_scores SET candidate_id=? WHERE id=?",(dest["id"],score["id"]))
+        contest_con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('contest_roster_migrated','1') ON CONFLICT(setting_key) DO UPDATE SET setting_value='1'")
+        contest_con.commit()
+    except Exception: contest_con.rollback(); raise
+    return len(candidates)
+
+def contest_participant_rows(con):
+    ensure_contest_schema(con)
+    return [dict(r) for r in con.execute("""SELECT id,source_candidate_id,category,name,photo,artistic_name,mannequin,shoe_size,body_size,source_position AS position,audition_total,audition_samba,audition_partial_total,audition_complete_evaluators,audition_evaluators_with_data FROM contest_participants ORDER BY source_position,category COLLATE NOCASE,name COLLATE NOCASE""").fetchall()]
+
 def parse_multipart(content_type,body):
     msg=BytesParser(policy=default).parsebytes(b"Content-Type: "+content_type.encode("latin-1")+b"\r\nMIME-Version: 1.0\r\n\r\n"+body)
     if not msg.is_multipart(): return None,None
@@ -116,7 +149,7 @@ def contest_eligible(con):
     return chosen
 
 def contest_result_rows(audition_con, contest_con):
-    eligible=contest_eligible(audition_con)
+    eligible=contest_participant_rows(contest_con)
     scores=contest_con.execute("SELECT candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba FROM contest_scores").fetchall()
     by={}
     for r in scores:
@@ -210,12 +243,13 @@ class Handler(SimpleHTTPRequestHandler):
                             pass
             return self.send_json({"ok":True,"stage":stage,"evaluators":[r["evaluator"] for r in rows]})
         if path=="/api/arrival-candidates":
-            with dbconn(AUDITION_DB) as con:
-                candidates=contest_eligible(con)
+            with dbconn(CONTEST_DB) as con: candidates=contest_participant_rows(con)
+            if not candidates:
+                with dbconn(AUDITION_DB) as con: candidates=contest_eligible(con)
             return self.send_json({"ok":True,"candidates":candidates})
         if path=="/api/contest-report-data":
-            with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con:
-                candidates=contest_eligible(audition_con)
+            with dbconn(CONTEST_DB) as contest_con:
+                candidates=contest_participant_rows(contest_con)
                 rows=contest_con.execute("SELECT candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at FROM contest_scores").fetchall()
             scores={}
             for r in rows:
@@ -227,8 +261,12 @@ class Handler(SimpleHTTPRequestHandler):
                     FROM candidates ORDER BY category,name COLLATE NOCASE""").fetchall()
             return self.send_json({"ok":True,"candidates":[dict(x) for x in rows]})
         if path=="/api/arrivals":
-            with dbconn() as con:
-                rows=con.execute("SELECT candidate_id,arrived_at,device FROM arrivals").fetchall()
+            with dbconn(CONTEST_DB) as con:
+                ensure_contest_schema(con)
+                migrated=con.execute("SELECT COUNT(*) FROM contest_participants").fetchone()[0]
+                rows=con.execute("SELECT candidate_id,arrived_at,device,status FROM contest_arrivals").fetchall()
+            if migrated: return self.send_json({"ok":True,"arrivals":{str(r["candidate_id"]):{"arrived_at":r["arrived_at"],"device":r["device"],"status":r["status"]} for r in rows}})
+            with dbconn() as con: rows=con.execute("SELECT candidate_id,arrived_at,device FROM arrivals").fetchall()
             return self.send_json({"ok":True,"arrivals":{str(r["candidate_id"]):{"arrived_at":r["arrived_at"],"device":r["device"]} for r in rows}})
         if path=="/api/scores":
             with dbconn() as con:
@@ -237,8 +275,8 @@ class Handler(SimpleHTTPRequestHandler):
             for r in rows: scores.setdefault(str(r["candidate_id"]),{})[r["evaluator"]]={"communication":r["communication"],"samba":r["samba"],"updated_at":r["updated_at"]}
             return self.send_json({"ok":True,"scores":scores})
         if path=="/api/contest-candidates":
-            with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con:
-                candidates=contest_eligible(audition_con)
+            with dbconn(CONTEST_DB) as contest_con:
+                candidates=contest_participant_rows(contest_con)
                 rs=contest_con.execute("SELECT candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at FROM contest_scores").fetchall()
             saved={}
             for r in rs:
@@ -272,8 +310,7 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 return self.send_json({"ok":False,"error":"Não foi possível exportar o Excel: "+str(e)},500)
         if path=="/api/contest-results":
-            with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con:
-                results=contest_result_rows(audition_con,contest_con)
+            with dbconn(CONTEST_DB) as contest_con: results=contest_result_rows(None,contest_con)
             return self.send_json({"ok":True,"results":results})
         if path=="/api/results":
             with dbconn() as con:
@@ -406,7 +443,8 @@ class Handler(SimpleHTTPRequestHandler):
                     con.execute("DELETE FROM audition_result_publication")
                     con.executemany("INSERT INTO audition_result_publication(candidate_id,category,position,published_at) VALUES(?,?,?,?)",published)
                     con.commit()
-                return self.send_json({"ok":True,"published":len(published),"published_at":now,"message":"Resultado da Audição disponibilizado para avaliação do Concurso."})
+                with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con: migrated=migrate_published_contest(audition_con,contest_con)
+                return self.send_json({"ok":True,"published":len(published),"migrated":migrated,"published_at":now,"message":"Resultado publicado e classificados migrados para o banco independente do Concurso."})
             except Exception as e:
                 return self.send_json({"ok":False,"error":"Não foi possível disponibilizar os resultados da Audição: "+str(e)},500)
         if path=="/api/contest-score":
@@ -426,9 +464,9 @@ class Handler(SimpleHTTPRequestHandler):
             aesthetics=float(aesthetics) if aesthetics not in (None,"") else None
             communication=float(communication) if communication not in (None,"") else None
             samba=float(samba) if samba not in (None,"") else None
-            with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con:
-                eligible={x["id"]:x for x in contest_eligible(audition_con)}
-                if cid not in eligible: return self.send_json({"ok":False,"error":"Participante não está entre os classificados para o concurso. Confira se a Audição tem notas salvas."},400)
+            with dbconn(CONTEST_DB) as contest_con:
+                eligible={x["id"]:x for x in contest_participant_rows(contest_con)}
+                if cid not in eligible: return self.send_json({"ok":False,"error":"Participante não está na lista migrada do Concurso."},400)
                 if eligible[cid]["category"].strip().casefold()=="passista de ouro": aesthetics=None
                 now=datetime.now().astimezone().isoformat(timespec="seconds")
                 contest_con.execute("""INSERT INTO contest_scores(candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at)
@@ -468,6 +506,22 @@ class Handler(SimpleHTTPRequestHandler):
             if photo is not None:
                 if not isinstance(photo,str) or not photo.startswith("data:image/") or len(photo)>8*1024*1024:
                     return self.send_json({"ok":False,"error":"Foto inválida ou muito grande (máximo 8 MB)."},400)
+            with dbconn(CONTEST_DB) as contest_con:
+                contest_person=contest_con.execute("SELECT id FROM contest_participants WHERE id=?",(cid,)).fetchone()
+            if contest_person:
+                with dbconn(CONTEST_DB) as con:
+                    fields=("artistic_name","mannequin","shoe_size","body_size"); assignments=[]; values=[]
+                    for field in fields:
+                        if field in data: assignments.append(field+"=?"); values.append(" ".join(str(data.get(field) or "").split())[:120])
+                    if photo is not None: assignments.append("photo=?"); values.append(photo)
+                    if assignments: con.execute("UPDATE contest_participants SET "+", ".join(assignments)+" WHERE id=?",(*values,cid))
+                    if save_only:
+                        con.commit(); return self.send_json({"ok":True,"saved":True,"photo_saved":photo is not None})
+                    if present or absent:
+                        now=datetime.now().astimezone().isoformat(timespec="seconds"); status="PRESENTE" if present else "AUSENTE"; device=data.get("device","Recepção") if present else "AUSENTE"
+                        con.execute("INSERT INTO contest_arrivals(candidate_id,arrived_at,device,status) VALUES(?,?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET arrived_at=excluded.arrived_at,device=excluded.device,status=excluded.status",(cid,now,device,status))
+                        con.commit(); return self.send_json({"ok":True,"arrival":{"arrived_at":now,"device":device,"status":status}})
+                    con.execute("DELETE FROM contest_arrivals WHERE candidate_id=?",(cid,)); con.commit(); return self.send_json({"ok":True,"arrival":None})
             with dbconn() as con:
                 exists=con.execute("SELECT id FROM candidates WHERE id=?",(cid,)).fetchone()
                 if not exists:return self.send_json({"ok":False,"error":"Candidato não encontrado."},404)
@@ -542,6 +596,10 @@ def init_contest_db():
 if __name__=="__main__":
     with dbconn(AUDITION_DB): pass
     init_contest_db()
+    try:
+        with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con:
+            if audition_con.execute("SELECT COUNT(*) FROM audition_result_publication").fetchone()[0]: migrate_published_contest(audition_con,contest_con)
+    except Exception as e: print("Aviso: migração do Concurso não concluída: "+str(e))
     ip=local_ip()
     print("\nCentral UESP 2027 iniciada.")
     print("No notebook: http://127.0.0.1:8765/central.html")
