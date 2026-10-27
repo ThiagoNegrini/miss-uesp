@@ -469,10 +469,24 @@ class Handler(SimpleHTTPRequestHandler):
                 if cid not in eligible: return self.send_json({"ok":False,"error":"Participante não está na lista migrada do Concurso."},400)
                 if eligible[cid]["category"].strip().casefold()=="passista de ouro": aesthetics=None
                 now=datetime.now().astimezone().isoformat(timespec="seconds")
-                contest_con.execute("""INSERT INTO contest_scores(candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at)
-                    VALUES(?,?,?,?,?,?) ON CONFLICT(candidate_id,evaluator) DO UPDATE SET
-                    aesthetics_sympathy=excluded.aesthetics_sympathy,communication_elegance=excluded.communication_elegance,
-                    samba=excluded.samba,updated_at=excluded.updated_at""",(cid,evaluator,aesthetics,communication,samba,now));contest_con.commit()
+                # Atualiza somente o critério enviado; notas de outros critérios devem ser preservadas.
+                fields=[]
+                values=[]
+                for key,column,value in (
+                    ("aesthetics_sympathy","aesthetics_sympathy",aesthetics),
+                    ("communication_elegance","communication_elegance",communication),
+                    ("samba","samba",samba)):
+                    if key in data:
+                        fields.append(column+"=excluded."+column)
+                        values.append(value)
+                if not fields:
+                    return self.send_json({"ok":False,"error":"Nenhum critério de nota foi informado."},400)
+                contest_con.execute(
+                    "INSERT INTO contest_scores(candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba,updated_at) "
+                    "VALUES(?,?,?,?,?,?) ON CONFLICT(candidate_id,evaluator) DO UPDATE SET "
+                    + ",".join(fields)+",updated_at=excluded.updated_at",
+                    (cid,evaluator,aesthetics,communication,samba,now))
+                contest_con.commit()
             return self.send_json({"ok":True,"updated_at":now})
         if path=="/api/score":
             try: data=self.read_json()
