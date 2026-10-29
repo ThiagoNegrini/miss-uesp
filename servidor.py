@@ -164,7 +164,7 @@ def contest_result_rows(audition_con, contest_con):
         required=("communication_elegance","samba","aesthetics_sympathy") if women else ("communication_elegance","samba")
         complete=[v for v in ev.values() if all(v[k] is not None for k in required)]
         # A finalização depende da quantidade de avaliadores cadastrados para o Concurso.
-        vals={k:round(sum(v[k] for v in complete)/len(complete),2) if complete else None for k in required}
+        vals={k:round(sum(v[k] for v in complete),2) if complete else None for k in required}
         partial_total=round(sum(vals[k] for k in required),2) if complete else None
         final= evaluator_count>0 and len(complete)>=evaluator_count
         status=("Aguardando cadastro de avaliadores" if evaluator_count==0 else
