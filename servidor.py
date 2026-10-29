@@ -150,6 +150,9 @@ def contest_eligible(con):
 
 def contest_result_rows(audition_con, contest_con):
     eligible=contest_participant_rows(contest_con)
+    evaluator_count=contest_con.execute(
+        "SELECT COUNT(*) FROM evaluator_roster WHERE stage='CONCURSO' AND TRIM(evaluator)<>''"
+    ).fetchone()[0]
     scores=contest_con.execute("SELECT candidate_id,evaluator,aesthetics_sympathy,communication_elegance,samba FROM contest_scores").fetchall()
     by={}
     for r in scores:
@@ -160,15 +163,17 @@ def contest_result_rows(audition_con, contest_con):
         women=c["category"].strip().casefold()!="passista de ouro"
         required=("communication_elegance","samba","aesthetics_sympathy") if women else ("communication_elegance","samba")
         complete=[v for v in ev.values() if all(v[k] is not None for k in required)]
-        # Partial results are available as soon as at least one evaluator has saved all applicable criteria.
-        # The total is the sum of the current mean of each criterion; it becomes final after five evaluators.
+        # A finalização depende da quantidade de avaliadores cadastrados para o Concurso.
         vals={k:round(sum(v[k] for v in complete)/len(complete),2) if complete else None for k in required}
         partial_total=round(sum(vals[k] for k in required),2) if complete else None
-        final= len(complete)>=5
+        final= evaluator_count>0 and len(complete)>=evaluator_count
+        status=("Aguardando cadastro de avaliadores" if evaluator_count==0 else
+                "Final" if final else ("Parcial" if complete else "Aguardando notas"))
         output.append({"id":c["id"],"category":c["category"],"name":c["name"],
             "aesthetics_sympathy":vals.get("aesthetics_sympathy"),"communication_elegance":vals.get("communication_elegance"),
             "samba":vals.get("samba"),"total":partial_total,"partial_total":partial_total,
-            "complete_evaluators":len(complete),"complete":final,"status":"Final" if final else ("Parcial" if complete else "Aguardando notas"),
+            "complete_evaluators":len(complete),"expected_evaluators":evaluator_count,
+            "complete":final,"status":status,
             "audition_total":c["audition_total"],"title":None})
     # Only complete contest entries can be ranked; tie-break is higher mean Samba no Pé.
     for cat in ("Passista de Ouro","Diva do Samba (Plus Size)","Rainha do Samba"):
