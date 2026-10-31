@@ -41,6 +41,8 @@ async function refresh(){
  try{
   const r=await fetch('/api/presenter-data',{cache:'no-store'}),j=await r.json();
   if(!r.ok||j.ok===false)throw Error(j.error||'Falha ao consultar o servidor.');
+  // Depois de abrir o resultado, congela a interface para a sincronização periódica não fechar os detalhes.
+  if(resultsOpen)return;
   currentData=j;renderParticipants();renderRelease();
   $('status').textContent=(j.participants||[]).length+' participante(s) carregado(s) · sincronizado às '+new Date().toLocaleTimeString('pt-BR');
  }catch(e){$('status').textContent='Não foi possível carregar: '+e.message}
