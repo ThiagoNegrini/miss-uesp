@@ -35,6 +35,7 @@ const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').trim();
 let currentData={released:false,participants:[],winners:[]};
+let resultsOpen=false;
 async function refresh(){
  try{
   const r=await fetch('/api/presenter-data',{cache:'no-store'}),j=await r.json();
@@ -55,12 +56,26 @@ function renderRelease(){
  const released=!!currentData.released;
  $('resultButton').disabled=!released;
  $('resultButton').textContent=released?'RESULTADO':'RESULTADO — AGUARDANDO LIBERAÇÃO';
- $('results').style.display='none';$('locked').style.display='block';
- $('locked').textContent=released?'Resultado liberado. Clique em RESULTADO para exibir os seis vencedores.':'O resultado final ainda não foi liberado pela organização.';
- $('winnerGrid').innerHTML='';
+ if(!released){
+  resultsOpen=false;
+  $('results').style.display='none';
+  $('locked').style.display='block';
+  $('locked').textContent='O resultado final ainda não foi liberado pela organização.';
+  $('winnerGrid').innerHTML='';
+ }else if(resultsOpen){
+  renderWinners();
+ }else{
+  $('results').style.display='none';
+  $('locked').style.display='block';
+  $('locked').textContent='Resultado liberado. Clique em RESULTADO para exibir os seis vencedores.';
+ }
 }
 function showResults(){
  if(!currentData.released)return;
+ resultsOpen=true;
+ renderWinners();
+}
+function renderWinners(){
  const winners=currentData.winners||[];
  const order=['Rainha','1ª Princesa','2ª Princesa','Diva','Passista de ouro','Passista de prata'];
  winners.sort((a,b)=>order.indexOf(a.position)-order.indexOf(b.position));
