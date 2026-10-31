@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Painel do Apresentador — MISS UESP</title>
+<style>
+:root{--red:#c8102e;--wine:#8f1026;--ink:#302329;--muted:#76666a;--line:#ead0d5;--paper:#fffafb}
+*{box-sizing:border-box}body{margin:0;background:#fff7f8;color:var(--ink);font-family:system-ui,Arial,sans-serif}
+header{background:linear-gradient(135deg,#6d0b1d,#c8102e);color:#fff;text-align:center;padding:28px 16px 24px;border-bottom:5px solid #e8bd78}
+header h1{margin:0;font-size:clamp(24px,4vw,38px);letter-spacing:.06em}header p{margin:7px 0 0;letter-spacing:.12em;font-size:12px}
+main{max-width:1400px;margin:24px auto;padding:0 18px}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+button{border:0;border-radius:9px;padding:12px 20px;background:var(--red);color:white;font-weight:800;letter-spacing:.04em;cursor:pointer}button:disabled{opacity:.5;cursor:wait}
+.status{color:var(--muted);font-size:13px}.columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.category{background:white;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 5px 18px #5410200b}
+.category h2{margin:0;padding:15px;background:#fff0f2;color:var(--wine);text-align:center;letter-spacing:.12em;font-size:18px}
+.people{padding:8px 16px}.person{padding:12px 0;border-bottom:1px solid #f1e5e7}.person:last-child{border-bottom:0}.name{font-weight:750}.art{font-size:13px;color:var(--muted);margin-top:3px}.empty{padding:20px;text-align:center;color:var(--muted)}
+.results{margin-top:28px;display:none}.results h2{text-align:center;color:var(--wine);letter-spacing:.12em;font-size:25px}.winner-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.winner{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
+.winner img,.no-photo{width:104px;height:126px;object-fit:cover;border-radius:9px;background:#f6e9ec;flex:none}
+.no-photo{display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:12px;color:var(--muted)}
+.position{font-size:12px;font-weight:900;letter-spacing:.1em;color:var(--red);text-transform:uppercase}.winner h3{margin:6px 0 2px;font-size:20px}.winner .art{font-size:15px}
+.locked{display:none;text-align:center;padding:24px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);margin-top:22px}
+@media(max-width:760px){.columns{grid-template-columns:1fr}.winner-grid{grid-template-columns:1fr}.winner img,.no-photo{width:86px;height:108px}}
+@media print{body{background:#fff}header{print-color-adjust:exact}.toolbar button{display:none}.category,.winner{break-inside:avoid;box-shadow:none}.results{display:block!important}}
+</style></head><body>
+<header><h1>MISS UESP</h1><p>PAINEL DO APRESENTADOR • CONCURSO</p></header>
+<main><div class="toolbar"><div><strong>Participantes do Concurso</strong><div class="status" id="status">Carregando lista…</div></div><button id="resultButton" type="button" disabled>RESULTADO</button></div>
+<section class="columns" id="columns">
+ <article class="category"><h2>PASSISTA</h2><div class="people" id="passista"><div class="empty">Carregando…</div></div></article>
+ <article class="category"><h2>DIVA</h2><div class="people" id="diva"><div class="empty">Carregando…</div></div></article>
+ <article class="category"><h2>RAINHA</h2><div class="people" id="rainha"><div class="empty">Carregando…</div></div></article>
+</section>
+<div class="locked" id="locked">O resultado final ainda não foi liberado pela organização.</div>
+<section class="results" id="results"><h2>RESULTADO FINAL</h2><div class="winner-grid" id="winnerGrid"></div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').trim();
+let currentData={released:false,participants:[],winners:[]};
+async function refresh(){
+ try{
+  const r=await fetch('/api/presenter-data',{cache:'no-store'}),j=await r.json();
+  if(!r.ok||j.ok===false)throw Error(j.error||'Falha ao consultar o servidor.');
+  currentData=j;renderParticipants();renderRelease();
+  $('status').textContent=(j.participants||[]).length+' participante(s) carregado(s) · sincronizado às '+new Date().toLocaleTimeString('pt-BR');
+ }catch(e){$('status').textContent='Não foi possível carregar: '+e.message}
+}
+function renderParticipants(){
+ const groups={passista:[],diva:[],rainha:[]};
+ for(const p of currentData.participants||[]){const c=norm(p.category);if(c.includes('passista'))groups.passista.push(p);else if(c.includes('diva'))groups.diva.push(p);else if(c.includes('rainha'))groups.rainha.push(p)}
+ for(const [key,list] of Object.entries(groups)){
+  list.sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+  $(key).innerHTML=list.length?list.map(p=>'<div class="person"><div class="name">'+esc(p.name)+'</div><div class="art">'+(p.artistic_name?'Nome artístico: '+esc(p.artistic_name):'Nome artístico não informado')+'</div></div>').join(''):'<div class="empty">Nenhum participante</div>';
+ }
+}
+function renderRelease(){
+ const released=!!currentData.released;
+ $('resultButton').disabled=!released;
+ $('resultButton').textContent=released?'RESULTADO':'RESULTADO — AGUARDANDO LIBERAÇÃO';
+ $('results').style.display='none';$('locked').style.display='block';
+ $('locked').textContent=released?'Resultado liberado. Clique em RESULTADO para exibir os seis vencedores.':'O resultado final ainda não foi liberado pela organização.';
+ $('winnerGrid').innerHTML='';
+}
+function showResults(){
+ if(!currentData.released)return;
+ const winners=currentData.winners||[];
+ const order=['Rainha','1ª Princesa','2ª Princesa','Diva','Passista de ouro','Passista de prata'];
+ winners.sort((a,b)=>order.indexOf(a.position)-order.indexOf(b.position));
+ $('winnerGrid').innerHTML=winners.map(w=>'<article class="winner">'+(w.photo?'<img src="'+esc(w.photo)+'" alt="Foto de '+esc(w.name)+'">':'<div class="no-photo">Foto não cadastrada</div>')+'<div><div class="position">'+esc(w.position)+'</div><h3>'+esc(w.name)+'</h3><div class="art">'+esc(w.artistic_name||'')+'</div><div class="art">'+esc(w.category)+'</div></div></article>').join('')||'<p class="empty">Os seis resultados ainda não estão completos na apuração oficial.</p>';
+ $('locked').style.display='none';$('results').style.display='block';
+}
+$('resultButton').addEventListener('click',showResults);
+refresh();setInterval(refresh,5000);
+</script></body></html>
