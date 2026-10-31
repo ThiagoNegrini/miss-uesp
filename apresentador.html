@@ -11,13 +11,13 @@ button{border:0;border-radius:9px;padding:12px 20px;background:var(--red);color:
 .category{background:white;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 5px 18px #5410200b}
 .category h2{margin:0;padding:15px;background:#fff0f2;color:var(--wine);text-align:center;letter-spacing:.12em;font-size:18px}
 .people{padding:8px 16px}.person{padding:12px 0;border-bottom:1px solid #f1e5e7}.person:last-child{border-bottom:0}.name{font-weight:750}.art{font-size:13px;color:var(--muted);margin-top:3px}.empty{padding:20px;text-align:center;color:var(--muted)}
-.results{margin-top:28px;display:none}.results h2{text-align:center;color:var(--wine);letter-spacing:.12em;font-size:25px}.winner-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.winner{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
+.results{margin-top:28px;display:none}.results h2{text-align:center;color:var(--wine);letter-spacing:.12em;font-size:25px}.winner-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.winner-item{min-width:0}.winner-detail{align-items:center;gap:16px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}.winner-detail img,.winner-detail .no-photo{width:104px;height:126px;object-fit:cover;border-radius:9px;background:#f6e9ec;flex:none}
+.winner{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}.winner-tile{width:100%;min-height:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;color:var(--wine);font-size:16px;letter-spacing:.08em}.winner-tile .tile-icon{font-size:30px}.winner-tile[aria-expanded="true"]{background:#fff0f2;border-color:var(--red)}.winner-detail{display:none;margin-top:10px}.winner-detail.open{display:flex}
 .winner img,.no-photo{width:104px;height:126px;object-fit:cover;border-radius:9px;background:#f6e9ec;flex:none}
 .no-photo{display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:12px;color:var(--muted)}
 .position{font-size:12px;font-weight:900;letter-spacing:.1em;color:var(--red);text-transform:uppercase}.winner h3{margin:6px 0 2px;font-size:20px}.winner .art{font-size:15px}
 .locked{display:none;text-align:center;padding:24px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);margin-top:22px}
-@media(max-width:760px){.columns{grid-template-columns:1fr}.winner-grid{grid-template-columns:1fr}.winner img,.no-photo{width:86px;height:108px}}
+@media(max-width:760px){.columns{grid-template-columns:1fr}.winner-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.winner-detail img,.winner-detail .no-photo{width:86px;height:108px}}
 @media print{body{background:#fff}header{print-color-adjust:exact}.toolbar button{display:none}.category,.winner{break-inside:avoid;box-shadow:none}.results{display:block!important}}
 </style></head><body>
 <header><h1>MISS UESP</h1><p>PAINEL DO APRESENTADOR • CONCURSO</p></header>
@@ -79,11 +79,19 @@ function showResults(){
 }
 function winnerIcon(w){const p=norm(w.position||'');const c=norm(w.category||'');return (p.includes('passista')||c.includes('passista'))?'🎩':'👑';}
 function renderWinners(){
- const winners=currentData.winners||[];
+ const winners=[...(currentData.winners||[])];
  const order=['Rainha','1ª Princesa','2ª Princesa','Diva do Samba (Plus Size)','Passista de ouro','Passista de prata'];
  winners.sort((a,b)=>order.indexOf(a.position)-order.indexOf(b.position));
- $('winnerGrid').innerHTML=winners.map(w=>'<article class="winner">'+(w.photo?'<img src="'+esc(w.photo)+'" alt="Foto de '+esc(w.name)+'">':'<div class="no-photo">Foto não cadastrada</div>')+'<div><div class="position">'+esc(w.position)+'</div><h3>'+esc(w.name)+' '+winnerIcon(w)+'</h3><div class="art">'+esc(w.artistic_name||'')+'</div><div class="art">'+esc(w.category)+'</div></div></article>').join('')||'<p class="empty">Os seis resultados ainda não estão completos na apuração oficial.</p>';
+ $('winnerGrid').innerHTML=winners.map((w,i)=>'<div class="winner-item"><button class="winner-tile" type="button" aria-expanded="false" aria-controls="winner-detail-'+i+'" onclick="toggleWinner('+i+')"><span class="tile-icon">'+winnerIcon(w)+'</span><span>'+esc(w.position)+'</span></button><article class="winner-detail" id="winner-detail-'+i+'">'+(w.photo?'<img src="'+esc(w.photo)+'" alt="Foto de '+esc(w.name)+'">':'<div class="no-photo">Foto não cadastrada</div>')+'<div><div class="position">'+esc(w.position)+'</div><h3>'+esc(w.name)+'</h3><div class="art">'+esc(w.artistic_name||'')+'</div><div class="art">'+esc(w.category)+'</div></div></article></div>').join('')||'<p class="empty">Os seis resultados ainda não estão completos na apuração oficial.</p>';
  $('locked').style.display='none';$('results').style.display='block';
+}
+function toggleWinner(index){
+ const detail=$('winner-detail-'+index);
+ const button=detail?.previousElementSibling;
+ if(!detail||!button)return;
+ const opening=!detail.classList.contains('open');
+ detail.classList.toggle('open',opening);
+ button.setAttribute('aria-expanded',String(opening));
 }
 $('resultButton').addEventListener('click',showResults);
 refresh();setInterval(refresh,5000);
