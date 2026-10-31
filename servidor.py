@@ -166,18 +166,20 @@ def contest_result_rows(audition_con, contest_con):
         # A finalização depende da quantidade de avaliadores cadastrados para o Concurso.
         vals={k:round(sum(v[k] for v in complete),2) if complete else None for k in required}
         partial_total=round(sum(vals[k] for k in required),2) if complete else None
+        # A classificação provisória é calculada com as avaliações completas já recebidas,
+        # sem exigir que todos os avaliadores cadastrados tenham enviado notas.
         final= evaluator_count>0 and len(complete)>=evaluator_count
-        status=("Aguardando cadastro de avaliadores" if evaluator_count==0 else
-                "Final" if final else ("Parcial" if complete else "Aguardando notas"))
+        status=("Final" if final else ("Parcial" if complete else "Aguardando notas"))
         output.append({"id":c["id"],"category":c["category"],"name":c["name"],"artistic_name":c.get("artistic_name") or "","photo":c.get("photo") or "",
             "aesthetics_sympathy":vals.get("aesthetics_sympathy"),"communication_elegance":vals.get("communication_elegance"),
             "samba":vals.get("samba"),"total":partial_total,"partial_total":partial_total,
             "complete_evaluators":len(complete),"expected_evaluators":evaluator_count,
             "complete":final,"status":status,
             "audition_total":c["audition_total"],"title":None})
-    # Only complete contest entries can be ranked; tie-break is higher mean Samba no Pé.
+    # Classifica provisoriamente com qualquer nota completa disponível; o título é atualizado
+    # automaticamente conforme novas avaliações chegam. Desempate pelo Samba no Pé acumulado.
     for cat in ("Passista de Ouro","Diva do Samba (Plus Size)","Rainha do Samba"):
-        group=[x for x in output if x["category"].strip().casefold()==cat.casefold() and x["complete"]]
+        group=[x for x in output if x["category"].strip().casefold()==cat.casefold() and x["complete_evaluators"]>0]
         group.sort(key=lambda x:(-x["total"],-(x["samba"] or 0),x["name"].casefold()))
         for i,x in enumerate(group,1):
             if cat=="Rainha do Samba": x["title"]={1:"Rainha do Carnaval",2:"Primeira Princesa",3:"Segunda Princesa"}.get(i,f"{i}º lugar")
