@@ -83,7 +83,7 @@ function showResults(){
 function winnerIcon(w){const p=norm(w.position||'');const c=norm(w.category||'');return (p.includes('passista')||c.includes('passista'))?'🎩':'👑';}
 function renderWinners(){
  const winners=[...(currentData.winners||[])];
- const order=['Rainha','1ª Princesa','2ª Princesa','Diva do Samba (Plus Size)','Passista de ouro','Passista de prata'];
+ const order=['Passista de prata','Passista de ouro','Diva do Samba (Plus Size)','2ª Princesa','1ª Princesa','Rainha'];
  winners.sort((a,b)=>order.indexOf(a.position)-order.indexOf(b.position));
  const signature=JSON.stringify(winners);
  if(signature!==renderedWinnersSignature){
