@@ -24,7 +24,7 @@ button{border:0;border-radius:9px;padding:12px 20px;background:var(--red);color:
 <main><div class="toolbar"><div><strong>Participantes do Concurso</strong><div class="status" id="status">Carregando lista…</div></div><button id="resultButton" type="button" disabled>RESULTADO</button></div>
 <section class="columns" id="columns">
  <article class="category"><h2>PASSISTA</h2><div class="people" id="passista"><div class="empty">Carregando…</div></div></article>
- <article class="category"><h2>DIVA</h2><div class="people" id="diva"><div class="empty">Carregando…</div></div></article>
+ <article class="category"><h2>DIVA DO SAMBA (PLUS SIZE)</h2><div class="people" id="diva"><div class="empty">Carregando…</div></div></article>
  <article class="category"><h2>RAINHA</h2><div class="people" id="rainha"><div class="empty">Carregando…</div></div></article>
 </section>
 <div class="locked" id="locked">O resultado final ainda não foi liberado pela organização.</div>
@@ -80,7 +80,7 @@ function showResults(){
 function winnerIcon(w){const p=norm(w.position||'');const c=norm(w.category||'');return (p.includes('passista')||c.includes('passista'))?'🎩':'👑';}
 function renderWinners(){
  const winners=currentData.winners||[];
- const order=['Rainha','1ª Princesa','2ª Princesa','Diva','Passista de ouro','Passista de prata'];
+ const order=['Rainha','1ª Princesa','2ª Princesa','Diva do Samba (Plus Size)','Passista de ouro','Passista de prata'];
  winners.sort((a,b)=>order.indexOf(a.position)-order.indexOf(b.position));
  $('winnerGrid').innerHTML=winners.map(w=>'<article class="winner">'+(w.photo?'<img src="'+esc(w.photo)+'" alt="Foto de '+esc(w.name)+'">':'<div class="no-photo">Foto não cadastrada</div>')+'<div><div class="position">'+esc(w.position)+'</div><h3>'+esc(w.name)+' '+winnerIcon(w)+'</h3><div class="art">'+esc(w.artistic_name||'')+'</div><div class="art">'+esc(w.category)+'</div></div></article>').join('')||'<p class="empty">Os seis resultados ainda não estão completos na apuração oficial.</p>';
  $('locked').style.display='none';$('results').style.display='block';
