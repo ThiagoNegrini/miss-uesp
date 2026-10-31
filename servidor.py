@@ -181,7 +181,7 @@ def contest_result_rows(audition_con, contest_con):
         group.sort(key=lambda x:(-x["total"],-(x["samba"] or 0),x["name"].casefold()))
         for i,x in enumerate(group,1):
             if cat=="Rainha do Samba": x["title"]={1:"Rainha do Carnaval",2:"Primeira Princesa",3:"Segunda Princesa"}.get(i,f"{i}º lugar")
-            elif cat=="Diva do Samba (Plus Size)": x["title"]="Diva Plus Size" if i==1 else f"{i}º lugar"
+            elif cat=="Diva do Samba (Plus Size)": x["title"]="Diva do Samba (Plus Size)" if i==1 else f"{i}º lugar"
             else: x["title"]={1:"Passista de Ouro",2:"Passista de Prata"}.get(i,f"{i}º lugar")
     output.sort(key=lambda x:(x["category"].casefold(),x["title"] is None,x["title"] or "",x["name"].casefold()))
     return output
@@ -326,7 +326,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if released:
                     final=contest_result_rows(None,contest_con)
                     winners=[]
-                    wanted={"rainha do samba":{"Rainha do Carnaval":"Rainha","Primeira Princesa":"1ª Princesa","Segunda Princesa":"2ª Princesa"},"diva do samba (plus size)":{"Diva Plus Size":"Diva"},"passista de ouro":{"Passista de Ouro":"Passista de ouro","Passista de Prata":"Passista de prata"}}
+                    wanted={"rainha do samba":{"Rainha do Carnaval":"Rainha","Primeira Princesa":"1ª Princesa","Segunda Princesa":"2ª Princesa"},"diva do samba (plus size)":{"Diva do Samba (Plus Size)":"Diva do Samba (Plus Size)"},"passista de ouro":{"Passista de Ouro":"Passista de ouro","Passista de Prata":"Passista de prata"}}
                     for item in final:
                         title=item.get("title")
                         label=wanted.get(item["category"].strip().casefold(),{}).get(title)
@@ -652,6 +652,6 @@ if __name__=="__main__":
     print(f"Na rede Wi-Fi: http://{ip}:8765/central.html")
     print(f"Chegada Rainha: http://{ip}:8765/chegada.html?categoria=rainha")
     print(f"Chegada Passista: http://{ip}:8765/chegada.html?categoria=passista")
-    print(f"Chegada Diva: http://{ip}:8765/chegada.html?categoria=diva")
+    print(f"Chegada Diva do Samba (Plus Size): http://{ip}:8765/chegada.html?categoria=diva")
     print("Mantenha esta janela aberta. Ctrl+C encerra o servidor.\n")
     ThreadingHTTPServer(("0.0.0.0",8765),Handler).serve_forever()
