@@ -5,7 +5,7 @@
 *{box-sizing:border-box}body{margin:0;background:#fff7f8;color:var(--ink);font-family:system-ui,Arial,sans-serif}
 header{background:linear-gradient(135deg,#6d0b1d,#c8102e);color:#fff;text-align:center;padding:28px 16px 24px;border-bottom:5px solid #e8bd78}
 header h1{margin:0;font-size:clamp(24px,4vw,38px);letter-spacing:.06em}header p{margin:7px 0 0;letter-spacing:.12em;font-size:12px}
-main{max-width:1400px;margin:24px auto;padding:0 18px}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+main{max-width:1400px;margin:24px auto;padding:0 18px}.results-mode .toolbar,.results-mode .columns{display:none!important}.results-mode .results{margin-top:12px}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 button{border:0;border-radius:9px;padding:12px 20px;background:var(--red);color:white;font-weight:800;letter-spacing:.04em;cursor:pointer}button:disabled{opacity:.5;cursor:wait}
 .status{color:var(--muted);font-size:13px}.columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .category{background:white;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 5px 18px #5410200b}
@@ -58,6 +58,7 @@ function renderRelease(){
  $('resultButton').textContent=released?'RESULTADO':'RESULTADO — AGUARDANDO LIBERAÇÃO';
  if(!released){
   resultsOpen=false;
+  document.body.classList.remove('results-mode');
   $('results').style.display='none';
   $('locked').style.display='block';
   $('locked').textContent='O resultado final ainda não foi liberado pela organização.';
@@ -73,6 +74,7 @@ function renderRelease(){
 function showResults(){
  if(!currentData.released)return;
  resultsOpen=true;
+ document.body.classList.add('results-mode');
  renderWinners();
 }
 function winnerIcon(w){const p=norm(w.position||'');const c=norm(w.category||'');return (p.includes('passista')||c.includes('passista'))?'🎩':'👑';}
