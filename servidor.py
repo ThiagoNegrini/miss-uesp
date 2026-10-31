@@ -169,7 +169,7 @@ def contest_result_rows(audition_con, contest_con):
         final= evaluator_count>0 and len(complete)>=evaluator_count
         status=("Aguardando cadastro de avaliadores" if evaluator_count==0 else
                 "Final" if final else ("Parcial" if complete else "Aguardando notas"))
-        output.append({"id":c["id"],"category":c["category"],"name":c["name"],
+        output.append({"id":c["id"],"category":c["category"],"name":c["name"],"artistic_name":c.get("artistic_name") or "","photo":c.get("photo") or "",
             "aesthetics_sympathy":vals.get("aesthetics_sympathy"),"communication_elegance":vals.get("communication_elegance"),
             "samba":vals.get("samba"),"total":partial_total,"partial_total":partial_total,
             "complete_evaluators":len(complete),"expected_evaluators":evaluator_count,
@@ -317,6 +317,23 @@ class Handler(SimpleHTTPRequestHandler):
         if path=="/api/contest-results":
             with dbconn(CONTEST_DB) as contest_con: results=contest_result_rows(None,contest_con)
             return self.send_json({"ok":True,"results":results})
+        if path=="/api/presenter-data":
+            with dbconn(CONTEST_DB) as contest_con:
+                participants=contest_participant_rows(contest_con)
+                setting=contest_con.execute("SELECT setting_value FROM app_settings WHERE setting_key='presenter_results_released'").fetchone()
+                released=bool(setting and setting["setting_value"]=="1")
+                payload={"ok":True,"released":released,"participants":[{"id":p["id"],"category":p["category"],"name":p["name"],"artistic_name":p.get("artistic_name") or ""} for p in participants]}
+                if released:
+                    final=contest_result_rows(None,contest_con)
+                    winners=[]
+                    wanted={"rainha do samba":{"Rainha do Carnaval":"Rainha","Primeira Princesa":"1ª Princesa","Segunda Princesa":"2ª Princesa"},"diva do samba (plus size)":{"Diva Plus Size":"Diva"},"passista de ouro":{"Passista de Ouro":"Passista de ouro","Passista de Prata":"Passista de prata"}}
+                    for item in final:
+                        title=item.get("title")
+                        label=wanted.get(item["category"].strip().casefold(),{}).get(title)
+                        if label:
+                            winners.append({"id":item["id"],"category":item["category"],"name":item["name"],"artistic_name":item.get("artistic_name") or "","photo":item.get("photo") or "","position":label})
+                    payload["winners"]=winners
+            return self.send_json(payload)
         if path=="/api/results":
             with dbconn() as con:
                 cs=con.execute("""
@@ -391,6 +408,15 @@ class Handler(SimpleHTTPRequestHandler):
                 con.executemany("INSERT INTO evaluator_roster(stage,position,evaluator) VALUES(?,?,?)",[(stage,i,name) for i,name in enumerate(cleaned,1)])
                 con.commit()
             return self.send_json({"ok":True,"stage":stage,"evaluators":cleaned,"saved":len(cleaned)})
+        if path=="/api/presenter-publication":
+            try: data=self.read_json()
+            except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
+            if not isinstance(data,dict) or not isinstance(data.get("released"),bool):
+                return self.send_json({"ok":False,"error":"Informe released como verdadeiro ou falso."},400)
+            with dbconn(CONTEST_DB) as con:
+                con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('presenter_results_released',?) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value",("1" if data["released"] else "0",))
+                con.commit()
+            return self.send_json({"ok":True,"released":data["released"]})
         if path=="/api/clear-contest-scores":
             try:
                 data=self.read_json()
