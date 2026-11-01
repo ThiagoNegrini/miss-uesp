@@ -4,24 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#c8102e">
 <title>Controle de Chegada — MISS UESP 2027</title>
-<style>
-:root{--navy:#c8102e;--gold:#c8102e;--bg:#ffffff;--ink:#202938;--muted:#5b4a4d;--line:#e5b7be;--green:#17784f;--red:#a33434;--blue:#c8102e}
-*{box-sizing:border-box}body{margin:0;background:#ffffff;color:#302329;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-header{background:#ffffff;color:#302329;padding:16px clamp(16px,4vw,42px);border-bottom:5px solid #c8102e;box-shadow:0 3px 14px #c8102e10}header small{color:#c8102e;font-weight:800;letter-spacing:.12em}h1{font-size:clamp(22px,4vw,30px);margin:6px 0}header p{margin:0;color:#d6deeb;font-size:14px}
-main{max-width:850px;margin:18px auto;padding:0 12px 30px}.card{background:#ffffff;border:1px solid #e5b7be;border-radius:14px;padding:18px;box-shadow:0 4px 14px #c8102e0a}
-label{font-weight:650;font-size:14px;display:block;margin-bottom:7px}select,input{width:100%;padding:12px;border:1px solid #cbd3df;border-radius:9px;font-size:16px;background:#fff;color:var(--ink)}
-.controls{display:grid;grid-template-columns:1fr 1fr;gap:12px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.stat{background:#c8102e;border:1px solid var(--line);border-radius:10px;padding:12px}.stat span{display:block;color:var(--muted);font-size:12px}.stat strong{font-size:25px}
-.list{display:grid;gap:12px}.candidate{border:2px solid var(--line);border-radius:13px;padding:14px;display:block;transition:background-color .2s,border-color .2s,box-shadow .2s}.candidate.is-pending{background:#fffafa;border-color:#d9a5ad}.candidate.is-present{background:#fff;border:3px solid #e00000;box-shadow:0 0 0 3px rgba(224,0,0,.14),0 5px 16px rgba(224,0,0,.18)}.candidate .candidate-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.candidate-main{display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:start}.photo-panel{width:100%;display:flex;flex-direction:column;gap:8px}.candidate-photo{width:100%;aspect-ratio:3/4;object-fit:cover;object-position:center top;border-radius:10px;border:1px solid #e5b7be;background:#fff5f5;display:block}.photo-placeholder{width:100%;aspect-ratio:3/4;border-radius:10px;border:1px dashed #d9a5ad;background:#fff5f5;color:#8b5260;display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;font-size:13px}.candidate-content{min-width:0}.candidate.is-present .candidate-photo{border:2px solid #e00000}.photo-button{width:100%;min-width:0!important;background:#4b5563;color:#fff;font-size:13px;padding:9px 8px}.candidate.is-absent{border-color:#b45309;background:#fffbeb}@media(max-width:520px){.candidate-main{grid-template-columns:110px minmax(0,1fr);gap:10px}.photo-button{font-size:12px;padding:8px 5px}}.candidate .info{flex:1;min-width:0}.candidate .name{font-weight:800;overflow-wrap:anywhere;font-size:16px}.candidate .meta{font-size:12px;color:var(--muted);margin-top:3px}.candidate.is-present .candidate-head{background:#fff;border-radius:9px;padding:10px}.candidate.is-present .badge.yes{background:#e00000;color:#fff;font-size:13px;padding:7px 11px}.candidate-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}.candidate-fields label:first-child{grid-column:1/-1}.candidate-fields input{min-width:0}.candidate.is-present .candidate-fields input{border-color:rgba(224,0,0,.42)}.candidate-actions{display:flex;gap:8px;flex-wrap:wrap}.candidate-actions button{flex:1;min-width:130px}
-button{border:0;border-radius:9px;padding:11px 15px;font-weight:700;cursor:pointer;background:#c8102e;color:#ffffff;box-shadow:0 2px 5px #c8102e1a}button.present{background:var(--green);color:white}button.undo{background:#fbeaea;color:var(--red)}button:disabled{opacity:.55}
-.badge{font-size:12px;border-radius:999px;padding:5px 8px;font-weight:750;white-space:nowrap}.yes{background:#e2f5eb;color:#176443}.no{background:#edf0f5;color:#566174}
-.status{font-size:13px;padding:9px 11px;background:#fff5f5;border:1px solid #e5b7be;border-radius:8px;color:#a50d25;margin-top:10px}.muted{color:var(--muted);font-size:13px}
-@media(max-width:520px){.controls{grid-template-columns:1fr}.candidate-fields{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.candidate-fields input{padding:10px 7px;font-size:15px}.candidate-actions button{width:100%;min-width:100%}.stats{gap:6px}.stat{padding:9px}}
-
-.brandbar{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:24px}
-.brand-logos{display:block;width:min(58%,680px);max-height:140px;object-fit:contain;object-position:left center;background:#fff;border:1px solid #e5b7be;border-radius:12px;padding:8px}
-.brand-title{min-width:220px}.brand-title h1{color:#c8102e}
-@media(max-width:760px){.brandbar{flex-direction:column;align-items:flex-start;gap:10px}.brand-logos{width:100%;max-height:115px;object-position:center}.brand-title{min-width:0}}
-</style></head>
+<link rel="stylesheet" href="assets/css/chegada.css"></head>
 <body>
 <header>
 <div class="brandbar">
@@ -51,72 +34,4 @@ button{border:0;border-radius:9px;padding:11px 15px;font-weight:700;cursor:point
   <div id="list" class="list" style="margin-top:12px"></div><input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
  </section>
 </main>
-<script>
-const $=id=>document.getElementById(id);
-const categoryAliases={rainha:'Rainha do Samba',passista:'Passista de Ouro',diva:'Diva do Samba (Plus Size)'};
-function normCat(v){let s=String(v||'').trim().toLocaleLowerCase('pt-BR');if(s.includes('rainha'))return 'Rainha do Samba';if(s.includes('passista'))return 'Passista de Ouro';if(s.includes('diva')||s.includes('plus size')||s.includes('miss plus'))return 'Diva do Samba (Plus Size)';return String(v||'').trim()}
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-let candidates=[], arrivals={};
-const params=new URLSearchParams(location.search);const requested=(params.get('categoria')||'').toLowerCase();
-if(categoryAliases[requested]){$('category').value=categoryAliases[requested];$('category').disabled=true}
-async function api(path,options={}){const r=await fetch(path,{cache:'no-store',...options});let j=await r.json();if(!r.ok||j.ok===false)throw new Error(j.error||'Falha na comunicação');return j}
-async function load(){
- try{
-  const [c,a]=await Promise.all([api('/api/arrival-candidates'),api('/api/arrivals')]);
-  candidates=c.candidates||[];arrivals=a.arrivals||{};
-  $('status').textContent='Conectado à central. Exibindo somente os 25 classificados na audição.';
-  render();
- }catch(e){$('status').textContent='Sem comunicação com a central: '+e.message+'. Confira se o servidor está aberto e se este tablet está no mesmo Wi-Fi.'}
-}
-function render(){
- // Preserve tudo o que estiver digitado antes de reconstruir a lista (inclusive no auto-refresh).
- const drafts={};
- document.querySelectorAll('input[data-cid][data-field]').forEach(el=>{
-  const id=String(el.dataset.cid); if(!drafts[id])drafts[id]={}; drafts[id][el.dataset.field]=el.value;
- });
- const active=document.activeElement;
- const activeKey=active&&active.matches('input[data-cid][data-field]')?`${active.dataset.cid}:${active.dataset.field}`:null;
- const caret=activeKey&&typeof active.selectionStart==='number'?active.selectionStart:null;
- const cat=$('category').value;const q=$('search').value.trim().toLocaleLowerCase('pt-BR');
- const all=candidates.filter(x=>normCat(x.category)===cat);
- const filtered=all.filter(x=>x.name.toLocaleLowerCase('pt-BR').includes(q));
- $('total').textContent=all.length;
- $('present').textContent=all.filter(x=>arrivals[x.id]?.status!=='AUSENTE' && !!arrivals[x.id]).length;
- $('pending').textContent=all.filter(x=>!arrivals[x.id]).length;
- $('absent').textContent=all.filter(x=>arrivals[x.id]?.status==='AUSENTE').length;
- $('list').innerHTML=filtered.length?filtered.map(x=>{
-  const a=arrivals[x.id];const isAbsent=a?.status==='AUSENTE';const isPresent=!!a&&!isAbsent;return `<div class="candidate ${isPresent?'is-present':isAbsent?'is-absent':'is-pending'}"><div class="candidate-main"><div class="photo-panel">${x.photo?`<img class="candidate-photo" src="${x.photo}" alt="Foto de ${esc(x.name)}" loading="lazy">`:`<div class="photo-placeholder">Foto não cadastrada</div>`}<button type="button" class="photo-button" data-id="${x.id}" data-action="photo">📷 Tirar foto</button></div><div class="candidate-content"><div class="candidate-head"><div class="info"><div class="name">${esc(x.name)}</div><div class="meta">${isPresent?'Chegada registrada: '+esc(a.arrived_at||''):isAbsent?'Ausência registrada: '+esc(a.arrived_at||''):'Aguardando chegada'}</div></div><span class="badge ${isPresent?'yes':'no'}">${isPresent?'✓ PRESENTE':isAbsent?'⚠ AUSENTE':'◷ PENDENTE'}</span></div><div class="candidate-fields"><label>Nome artístico<input data-field="artistic_name" data-cid="${x.id}" value="${esc(x.artistic_name||'')}" placeholder="Nome artístico"></label><label>Manequim<input data-field="mannequin" data-cid="${x.id}" value="${esc(x.mannequin||'')}" placeholder="Manequim"></label><label>Calçado<input data-field="shoe_size" data-cid="${x.id}" value="${esc(x.shoe_size||'')}" placeholder="Calçado"></label><label>Tamanho Body<input data-field="body_size" data-cid="${x.id}" value="${esc(x.body_size||'')}" placeholder="Tamanho Body"></label></div><div class="candidate-actions"><button class="present" data-id="${x.id}" data-action="save">Salvar dados</button><button class="${isPresent?'undo':'present'}" data-id="${x.id}" data-action="${isPresent?'undo':'present'}">${isPresent?'Desfazer chegada':'Marcar presente'}</button><button class="undo" data-id="${x.id}" data-action="absent">Marcar ausente</button></div></div></div></div>`
- }).join(''):'<p class="muted">Nenhum candidato encontrado nesta categoria/busca.</p>';
- // Reaplica rascunhos locais, que têm prioridade sobre os valores recebidos do servidor.
- document.querySelectorAll('input[data-cid][data-field]').forEach(el=>{
-  const value=drafts[String(el.dataset.cid)]?.[el.dataset.field]; if(value!==undefined)el.value=value;
- });
- document.querySelectorAll('button[data-id]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.action==='photo'){ $('photoInput').dataset.cid=b.dataset.id; $('photoInput').click(); } else mark(b.dataset.id,b.dataset.action)}));
- if(activeKey){const [id,field]=activeKey.split(':');const next=document.querySelector(`input[data-cid="${CSS.escape(id)}"][data-field="${CSS.escape(field)}"]`);if(next){next.focus({preventScroll:true});if(caret!==null)try{next.setSelectionRange(caret,caret)}catch(_){}}}
-}
-function fieldsFor(id){const get=k=>document.querySelector(`[data-cid=\"${CSS.escape(String(id))}\"][data-field=\"${k}\"]`)?.value||'';return {artistic_name:get('artistic_name'),mannequin:get('mannequin'),shoe_size:get('shoe_size'),body_size:get('body_size')}}
-async function mark(id,action){
- const b=[...document.querySelectorAll(`button[data-id=\"${CSS.escape(String(id))}\"]`)].find(x=>x.dataset.action===action);if(b)b.disabled=true;
- try{
-  const r=await api('/api/arrival',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidate_id:Number(id),present:action==='present',absent:action==='absent',save_only:action==='save',...fieldsFor(id)})});
-  arrivals[id]=r.arrival||null;if(!arrivals[id])delete arrivals[id];
-  $('status').textContent=action==='save'?'Dados de chegada salvos no banco de dados.':(action==='present'?'Presença e dados salvos e sincronizados.':action==='absent'?'Ausência registrada; a candidata ficará fora da classificação.':'Registro de presença desfeito.');
-  render();
- }catch(e){$('status').textContent='Não foi possível salvar a presença: '+e.message}
-}
-
-$('photoInput').addEventListener('change',async()=>{
- const input=$('photoInput');const file=input.files&&input.files[0];const id=input.dataset.cid;input.value='';if(!file||!id)return;
- if(!file.type.startsWith('image/')){ $('status').textContent='Selecione uma imagem válida.';return; }
- try{
-  // Redimensiona a imagem antes de enviá-la para manter o banco leve.
-  const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const max=1200,scale=Math.min(1,max/Math.max(img.width,img.height));const canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL('image/jpeg',0.82));};img.onerror=reject;img.src=reader.result;};reader.onerror=reject;reader.readAsDataURL(file);});
-  const r=await api('/api/arrival',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidate_id:Number(id),save_only:true,photo:dataUrl,...fieldsFor(id)})});
-  const c=candidates.find(x=>String(x.id)===String(id));if(c)c.photo=dataUrl; $('status').textContent='Foto salva no cadastro da candidata.';render();
- }catch(e){$('status').textContent='Não foi possível salvar a foto: '+e.message;}
-});
-
-$('category').addEventListener('change',render);$('search').addEventListener('input',render);
-$('exportXlsx').addEventListener('click',()=>{window.location.href='/api/export-xlsx'});
-load();setInterval(load,5000);
-</script></body></html>
+<script src="assets/js/chegada.js"></script></body></html>
