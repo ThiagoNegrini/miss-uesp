@@ -1,6 +1,6 @@
 
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const api=async(path,body)=>{const r=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'}),j=await r.json();if(!r.ok||j.ok===false)throw Error(j.error||'Falha na operação');return j};
+const api=(path,body)=>requestJSON(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})
 let state={evaluators:[],results:[],released:false};
 async function load(){try{
  state=await api('/api/agulha/data');
