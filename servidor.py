@@ -217,19 +217,32 @@ def agulha_result_rows(contest_con, agulha_con):
             "complete_evaluators":complete,"expected_evaluators":len(evaluators),
             "complete":bool(evaluators) and complete==len(evaluators),
             "status":"Completa" if evaluators and complete==len(evaluators) else ("Parcial" if complete else "Aguardando notas")})
-    group=[x for x in output if x["total"] is not None]
-    group.sort(key=lambda x:(-x["total"],x["name"].casefold(),x["category"].casefold()))
-    position=0; previous=None
-    for i,item in enumerate(group,1):
-        if previous is None or item["total"] != previous: position=i
-        item["position"]=position
-        previous=item["total"]
-    top_score=group[0]["total"] if group else None
-    top_count=sum(1 for item in group if item["total"]==top_score) if group else 0
-    for item in group:
-        item["tied_for_first"]=item["total"]==top_score and top_count>1
-    output.sort(key=lambda x:(x.get("position",999),x["category"].casefold(),x["name"].casefold()))
+    for category in ("rainha do samba","diva do samba (plus size)"):
+        group=[x for x in output if x["category"].strip().casefold()==category and x["total"] is not None]
+        group.sort(key=lambda x:(-x["total"],x["name"].casefold()))
+        position=0; previous=None
+        for i,item in enumerate(group,1):
+            if previous is None or item["total"] != previous: position=i
+            item["position"]=position
+            previous=item["total"]
+        top_score=group[0]["total"] if group else None
+        top_count=sum(1 for item in group if item["total"]==top_score) if group else 0
+        for item in group:
+            item["tied_for_first"]=item["total"]==top_score and top_count>1
+    output.sort(key=lambda x:(x["category"].casefold(),x.get("position",999),x["name"].casefold()))
     return evaluators,output
+
+def agulha_release_valid(evaluators,results):
+    if not evaluators or not results or any(not item["complete"] for item in results):
+        return False
+    if any(item.get("tied_for_first") for item in results):
+        return False
+    return all(
+        sum(1 for item in results
+            if item["category"].strip().casefold()==category
+            and item.get("position")==1 and item["complete"])==1
+        for category in ("rainha do samba","diva do samba (plus size)")
+    )
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self,*a,**kw): super().__init__(*a,directory=str(HERE),**kw)
@@ -383,20 +396,21 @@ class Handler(SimpleHTTPRequestHandler):
             with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
                 evaluators,results=agulha_result_rows(contest_con,agulha_con)
                 setting=agulha_con.execute("SELECT setting_value FROM app_settings WHERE setting_key='released'").fetchone()
-            return self.send_json({"ok":True,"evaluators":evaluators,"results":results,
-                "released":bool(setting and setting["setting_value"]=="1")})
+            released=bool(setting and setting["setting_value"]=="1") and agulha_release_valid(evaluators,results)
+            return self.send_json({"ok":True,"evaluators":evaluators,"results":results,"released":released})
         if path=="/api/agulha/presenter-data":
             with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
                 evaluators,results=agulha_result_rows(contest_con,agulha_con)
                 setting=agulha_con.execute("SELECT setting_value FROM app_settings WHERE setting_key='released'").fetchone()
-                released=bool(setting and setting["setting_value"]=="1")
+                released=bool(setting and setting["setting_value"]=="1") and agulha_release_valid(evaluators,results)
                 winners=[]
                 if released:
-                    group=[x for x in results if x.get("position")==1 and x["complete"]]
-                    if group:
-                        x=group[0]
-                        winners.append({"id":x["id"],"category":x["category"],"name":x["name"],
-                            "artistic_name":x["artistic_name"],"photo":x["photo"],"position":"Agulha de Ouro"})
+                    for category in ("rainha do samba","diva do samba (plus size)"):
+                        group=[x for x in results if x["category"].strip().casefold()==category and x.get("position")==1 and x["complete"]]
+                        if group:
+                            x=group[0]
+                            winners.append({"id":x["id"],"category":x["category"],"name":x["name"],
+                                "artistic_name":x["artistic_name"],"photo":x["photo"],"position":"Agulha de Ouro"})
             return self.send_json({"ok":True,"released":released,"winners":winners})
         if path=="/api/results":
             with dbconn() as con:
@@ -605,10 +619,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({"ok":False,"error":"Informe released como verdadeiro ou falso."},400)
             with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
                 evaluators,results=agulha_result_rows(contest_con,agulha_con)
-                unresolved_tie=any(x.get("tied_for_first") for x in results)
-                unique_winner_count=sum(1 for x in results if x.get("position")==1 and x["complete"])
-                if data["released"] and (not evaluators or not results or any(not x["complete"] for x in results) or unresolved_tie or unique_winner_count!=1):
-                    return self.send_json({"ok":False,"error":"Conclua as avaliações de todas as participantes e resolva o empate para liberar uma única vencedora geral."},400)
+                if data["released"] and not agulha_release_valid(evaluators,results):
+                    return self.send_json({"ok":False,"error":"Conclua todas as avaliações e resolva os empates para liberar uma vencedora em cada categoria."},400)
                 value="1" if data["released"] else "0"
                 agulha_con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('released',?) "
                     "ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value",(value,))
