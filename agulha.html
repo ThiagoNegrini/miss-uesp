@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agulha de Ouro — MISS UESP</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Arial,sans-serif;background:#fff7f8;color:#302329}
+header{padding:20px;border-bottom:5px solid #c8102e;background:white}header,main{padding-left:max(16px,calc((100% - 1200px)/2));padding-right:max(16px,calc((100% - 1200px)/2))}
+h1,h2,h3{color:#a50d25}main{padding-top:18px;padding-bottom:36px}.card{background:#fff;border:1px solid #e5b7be;border-radius:12px;padding:16px;margin-bottom:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}button,select,input,textarea{font:inherit;padding:9px;border:1px solid #c8102e;border-radius:8px}button{background:#c8102e;color:#fff;font-weight:750;cursor:pointer}button.secondary{background:white;color:#a50d25}button:disabled{opacity:.5;cursor:wait}
+textarea{width:100%;max-width:650px}.note,.status{color:#5b4a4d;font-size:14px}.status{padding:10px;background:#fff5f5;border-radius:8px;white-space:pre-wrap}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px;border-bottom:1px solid #ead0d5}th{background:#c8102e;color:white}.wrap{overflow:auto}
+@media print{header,.no-print{display:none!important}body{background:white}.card{break-inside:avoid;border-color:#aaa}}
+</style></head><body>
+<header><small>MISS UESP • PREMIAÇÃO INDEPENDENTE</small><h1>Agulha de Ouro</h1><p>Critério exclusivo: vestido/roupa • Notas de 9,0 a 10,0 em intervalos de 0,1</p></header>
+<main>
+<section class="card no-print"><h2>Avaliadores do Agulha de Ouro</h2><p class="note">Cadastre pelo menos dois avaliadores próprios, um nome por linha. A lista não depende dos avaliadores do Concurso.</p>
+<textarea id="roster" rows="4" placeholder="Nome de cada avaliador em uma linha"></textarea>
+<div class="row" style="margin-top:10px"><button id="saveRoster">Salvar avaliadores</button><span id="rosterStatus" class="note"></span></div>
+</section>
+<section class="card no-print"><h2>Registrar ou reavaliar nota</h2><p class="note">Selecione o avaliador e a candidata. Para desempatar, um avaliador pode reavaliar e editar uma nota já dada. A classificação será recalculada pela soma, e uma alteração oculta novamente a publicação até a liberação.</p>
+<div class="row"><label>Avaliador <select id="evaluator"></select></label><label>Candidata <select id="candidate"></select></label><label>Nota <select id="score"></select></label><button id="saveScore">Salvar nota</button></div>
+<p id="scoreStatus" class="note"></p></section>
+<section class="card"><div class="row" style="justify-content:space-between"><div><h2>Apuração e relatório final</h2><p id="resultStatus" class="note">Carregando…</p></div><div class="row no-print"><button class="secondary" id="refresh">Atualizar</button><button class="secondary" onclick="window.print()">Imprimir relatório</button><label><input type="checkbox" id="release"> Liberar no painel</label></div></div>
+<div class="wrap"><table><thead id="head"></thead><tbody id="rows"></tbody></table></div>
+<p class="note">Somente Rainha do Samba e Diva do Samba (Plus Size) participam. O resultado é calculado e armazenado separadamente e não interfere nas notas ou classificação do Concurso. Empates permanecem indicados até que um avaliador edite uma das notas já atribuídas.</p>
+</section></main>
+<script>
+const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api=async(path,body)=>{const r=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});const j=await r.json();if(!r.ok||j.ok===false)throw Error(j.error||'Falha na operação');return j};
+let state={evaluators:[],results:[],released:false};
+const options='<option value="">—</option>'+Array.from({length:11},(_,i)=>{const v=(9+i/10).toFixed(1);return '<option value="'+v+'">'+v.replace('.',',')+'</option>'}).join('');
+$('score').innerHTML=options;
+async function load(){try{state=await api('/api/agulha/data');$('roster').value=(state.evaluators||[]).join('\n');$('evaluator').innerHTML=(state.evaluators||[]).map(x=>'<option>'+esc(x)+'</option>').join('')||'<option value="">Cadastre os avaliadores</option>';
+const eligible=(state.results||[]);$('candidate').innerHTML=eligible.map(x=>'<option value="'+x.id+'">'+esc(x.name)+' — '+esc(x.category)+'</option>').join('')||'<option value="">Sem candidatas elegíveis no Concurso</option>';
+$('head').innerHTML='<tr><th>Categoria</th><th>Candidata</th>'+state.evaluators.map(x=>'<th>'+esc(x)+'</th>').join('')+'<th>Soma</th><th>Posição</th><th>Situação</th></tr>';
+$('rows').innerHTML=eligible.map(x=>'<tr><td>'+esc(x.category)+'</td><td>'+esc(x.name)+'</td>'+state.evaluators.map(ev=>'<td>'+(x.scores[ev]==null?'—':Number(x.scores[ev]).toLocaleString('pt-BR',{minimumFractionDigits:1}))+'</td>').join('')+'<td><b>'+(x.total==null?'—':Number(x.total).toLocaleString('pt-BR',{minimumFractionDigits:1}))+'</b></td><td>'+(x.position||'—')+'º</td><td>'+esc(x.status)+'</td></tr>').join('')||'<tr><td colspan="7">Ainda não há candidatas elegíveis.</td></tr>';
+$('release').checked=!!state.released;$('resultStatus').textContent=(state.released?'Resultado liberado no Painel do Apresentador. ':'Resultado não liberado. ')+eligible.filter(x=>x.complete).length+'/'+eligible.length+' candidatas com avaliações completas.';
+}catch(e){$('resultStatus').textContent='Falha ao carregar: '+e.message}}
+$('saveRoster').onclick=async()=>{try{const evaluators=$('roster').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const j=await api('/api/agulha/evaluators',{evaluators});$('rosterStatus').textContent='Lista salva: '+j.evaluators.length+' avaliadores.';await load()}catch(e){$('rosterStatus').textContent=e.message}};
+function syncScoreEditor(){const candidate=state.results.find(x=>String(x.id)===$('candidate').value);const value=candidate?.scores?.[$('evaluator').value];$('score').value=value==null?'':Number(value).toFixed(1);$('scoreStatus').textContent=value==null?'Nenhuma nota anterior para esta combinação.':'Nota já registrada: '+Number(value).toLocaleString('pt-BR',{minimumFractionDigits:1})+' — pode ser editada, inclusive para desempate.'}
+$('candidate').addEventListener('change',syncScoreEditor);$('evaluator').addEventListener('change',syncScoreEditor);
+$('saveScore').onclick=async()=>{try{await api('/api/agulha/score',{candidate_id:Number($('candidate').value),evaluator:$('evaluator').value,score:$('score').value});$('scoreStatus').textContent='Nota salva. Se havia resultado publicado, a publicação foi recolhida para revisão.';$('score').value='';await load();syncScoreEditor()}catch(e){$('scoreStatus').textContent=e.message}};
+$('release').onchange=async()=>{const c=$('release');try{const j=await api('/api/agulha/publication',{released:c.checked});$('resultStatus').textContent=j.released?'Resultado liberado separadamente no Painel do Apresentador.':'Resultado ocultado no Painel do Apresentador.';await load()}catch(e){c.checked=!c.checked;$('resultStatus').textContent=e.message}};
+$('refresh').onclick=load;load().then(syncScoreEditor);
+</script></body></html>
