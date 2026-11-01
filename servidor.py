@@ -217,19 +217,20 @@ def agulha_result_rows(contest_con, agulha_con):
             "complete_evaluators":complete,"expected_evaluators":len(evaluators),
             "complete":bool(evaluators) and complete==len(evaluators),
             "status":"Completa" if evaluators and complete==len(evaluators) else ("Parcial" if complete else "Aguardando notas")})
-    for category in ("rainha do samba","diva do samba (plus size)"):
-        group=[x for x in output if x["category"].strip().casefold()==category and x["total"] is not None]
-        group.sort(key=lambda x:(-x["total"],x["name"].casefold()))
-        position=0; previous=None
-        for i,item in enumerate(group,1):
-            if previous is None or item["total"] != previous: position=i
-            item["position"]=position
-            previous=item["total"]
-        top_score=group[0]["total"] if group else None
-        top_count=sum(1 for item in group if item["total"]==top_score) if group else 0
-        for item in group:
-            item["tied_for_first"]=item["total"]==top_score and top_count>1
-    output.sort(key=lambda x:(x["category"].casefold(),x.get("position",999),x["name"].casefold()))
+    # A classificação é única para as candidatas elegíveis das duas categorias.
+    # Notas parciais entram no total provisório; a liberação exige todas completas.
+    group=[x for x in output if x["total"] is not None]
+    group.sort(key=lambda x:(-x["total"],x["name"].casefold(),x["category"].casefold()))
+    position=0; previous=None
+    for i,item in enumerate(group,1):
+        if previous is None or item["total"] != previous: position=i
+        item["position"]=position
+        previous=item["total"]
+    top_score=group[0]["total"] if group else None
+    top_count=sum(1 for item in group if item["total"]==top_score) if group else 0
+    for item in group:
+        item["tied_for_first"]=item["total"]==top_score and top_count>1
+    output.sort(key=lambda x:(x.get("position",999),x["category"].casefold(),x["name"].casefold()))
     return evaluators,output
 
 def agulha_release_valid(evaluators,results):
@@ -237,12 +238,8 @@ def agulha_release_valid(evaluators,results):
         return False
     if any(item.get("tied_for_first") for item in results):
         return False
-    return all(
-        sum(1 for item in results
-            if item["category"].strip().casefold()==category
-            and item.get("position")==1 and item["complete"])==1
-        for category in ("rainha do samba","diva do samba (plus size)")
-    )
+    return sum(1 for item in results
+        if item.get("position")==1 and item["complete"])==1
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self,*a,**kw): super().__init__(*a,directory=str(HERE),**kw)
@@ -405,12 +402,11 @@ class Handler(SimpleHTTPRequestHandler):
                 released=bool(setting and setting["setting_value"]=="1") and agulha_release_valid(evaluators,results)
                 winners=[]
                 if released:
-                    for category in ("rainha do samba","diva do samba (plus size)"):
-                        group=[x for x in results if x["category"].strip().casefold()==category and x.get("position")==1 and x["complete"]]
-                        if group:
-                            x=group[0]
-                            winners.append({"id":x["id"],"category":x["category"],"name":x["name"],
-                                "artistic_name":x["artistic_name"],"photo":x["photo"],"position":"Agulha de Ouro"})
+                    group=[x for x in results if x.get("position")==1 and x["complete"]]
+                    if len(group)==1:
+                        x=group[0]
+                        winners.append({"id":x["id"],"category":x["category"],"name":x["name"],
+                            "artistic_name":x["artistic_name"],"photo":x["photo"],"position":"Agulha de Ouro"})
             return self.send_json({"ok":True,"released":released,"winners":winners})
         if path=="/api/results":
             with dbconn() as con:
@@ -620,7 +616,7 @@ class Handler(SimpleHTTPRequestHandler):
             with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
                 evaluators,results=agulha_result_rows(contest_con,agulha_con)
                 if data["released"] and not agulha_release_valid(evaluators,results):
-                    return self.send_json({"ok":False,"error":"Conclua todas as avaliações e resolva os empates para liberar uma vencedora em cada categoria."},400)
+                    return self.send_json({"ok":False,"error":"Conclua todas as avaliações e resolva o empate geral para liberar uma única vencedora do Agulha de Ouro."},400)
                 value="1" if data["released"] else "0"
                 agulha_con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('released',?) "
                     "ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value",(value,))
