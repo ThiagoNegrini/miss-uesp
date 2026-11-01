@@ -225,6 +225,10 @@ def agulha_result_rows(contest_con, agulha_con):
             if previous is None or item["total"] != previous: position=i
             item["position"]=position
             previous=item["total"]
+        top_score=group[0]["total"] if group else None
+        top_count=sum(1 for item in group if item["total"]==top_score) if group else 0
+        for item in group:
+            item["tied_for_first"]=item["total"]==top_score and top_count>1
     output.sort(key=lambda x:(x["category"].casefold(),x.get("position",999),x["name"].casefold()))
     return evaluators,output
 
@@ -391,9 +395,10 @@ class Handler(SimpleHTTPRequestHandler):
                 if released:
                     for category in ("rainha do samba","diva do samba (plus size)"):
                         group=[x for x in results if x["category"].strip().casefold()==category and x.get("position")==1 and x["complete"]]
-                        winners.extend([{"id":x["id"],"category":x["category"],"name":x["name"],
-                            "artistic_name":x["artistic_name"],"photo":x["photo"],"position":"Agulha de Ouro"}
-                            for x in group])
+                        if group:
+                            x=group[0]
+                            winners.append({"id":x["id"],"category":x["category"],"name":x["name"],
+                                "artistic_name":x["artistic_name"],"photo":x["photo"],"position":"Agulha de Ouro"})
             return self.send_json({"ok":True,"released":released,"winners":winners})
         if path=="/api/results":
             with dbconn() as con:
@@ -589,8 +594,11 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({"ok":False,"error":"Informe released como verdadeiro ou falso."},400)
             with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
                 evaluators,results=agulha_result_rows(contest_con,agulha_con)
-                if data["released"] and (not evaluators or not results or any(not x["complete"] for x in results)):
-                    return self.send_json({"ok":False,"error":"Conclua todas as avaliações das candidatas elegíveis antes de liberar o resultado."},400)
+                required_categories=("rainha do samba","diva do samba (plus size)")
+                missing_category=any(not any(x["category"].strip().casefold()==category for x in results) for category in required_categories)
+                unresolved_tie=any(x.get("tied_for_first") for x in results)
+                if data["released"] and (not evaluators or not results or missing_category or any(not x["complete"] for x in results) or unresolved_tie):
+                    return self.send_json({"ok":False,"error":"Conclua todas as avaliações e resolva os empates para haver exatamente uma vencedora em cada categoria."},400)
                 value="1" if data["released"] else "0"
                 agulha_con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('released',?) "
                     "ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value",(value,))
