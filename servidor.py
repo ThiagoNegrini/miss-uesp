@@ -241,6 +241,14 @@ def agulha_release_valid(evaluators,results):
     return sum(1 for item in results
         if item.get("position")==1 and item["complete"])==1
 
+def ensure_agulha_publication_version(con):
+    """Revoga uma publicação legada por categoria na primeira leitura do ranking geral."""
+    version=con.execute("SELECT setting_value FROM app_settings WHERE setting_key='publication_mode'").fetchone()
+    if version is None:
+        con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('publication_mode','general-v1')")
+        con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('released','0') "
+            "ON CONFLICT(setting_key) DO UPDATE SET setting_value='0'")
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self,*a,**kw): super().__init__(*a,directory=str(HERE),**kw)
     def send_json(self,data,status=200):
@@ -392,12 +400,15 @@ class Handler(SimpleHTTPRequestHandler):
         if path=="/api/agulha/data":
             with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
                 evaluators,results=agulha_result_rows(contest_con,agulha_con)
+                ensure_agulha_publication_version(agulha_con)
                 setting=agulha_con.execute("SELECT setting_value FROM app_settings WHERE setting_key='released'").fetchone()
+                agulha_con.commit()
             released=bool(setting and setting["setting_value"]=="1") and agulha_release_valid(evaluators,results)
             return self.send_json({"ok":True,"evaluators":evaluators,"results":results,"released":released})
         if path=="/api/agulha/presenter-data":
             with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
                 evaluators,results=agulha_result_rows(contest_con,agulha_con)
+                ensure_agulha_publication_version(agulha_con)
                 setting=agulha_con.execute("SELECT setting_value FROM app_settings WHERE setting_key='released'").fetchone()
                 released=bool(setting and setting["setting_value"]=="1") and agulha_release_valid(evaluators,results)
                 winners=[]
@@ -617,6 +628,7 @@ class Handler(SimpleHTTPRequestHandler):
             if not isinstance(data,dict) or not isinstance(data.get("released"),bool):
                 return self.send_json({"ok":False,"error":"Informe released como verdadeiro ou falso."},400)
             with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
+                ensure_agulha_publication_version(agulha_con)
                 evaluators,results=agulha_result_rows(contest_con,agulha_con)
                 if data["released"] and not agulha_release_valid(evaluators,results):
                     return self.send_json({"ok":False,"error":"Conclua todas as avaliações e resolva o empate geral para liberar uma única vencedora do Agulha de Ouro."},400)
