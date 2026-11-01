@@ -480,6 +480,9 @@ class Handler(SimpleHTTPRequestHandler):
             with dbconn(database) as con:
                 con.execute("DELETE FROM evaluator_roster WHERE stage=?",(stage,))
                 con.executemany("INSERT INTO evaluator_roster(stage,position,evaluator) VALUES(?,?,?)",[(stage,i,name) for i,name in enumerate(cleaned,1)])
+                if stage=="CONCURSO":
+                    con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('presenter_results_released','0') "
+                        "ON CONFLICT(setting_key) DO UPDATE SET setting_value='0'")
                 con.commit()
             return self.send_json({"ok":True,"stage":stage,"evaluators":cleaned,"saved":len(cleaned)})
         if path=="/api/presenter-publication":
@@ -661,6 +664,8 @@ class Handler(SimpleHTTPRequestHandler):
                     "VALUES(?,?,?,?,?,?) ON CONFLICT(candidate_id,evaluator) DO UPDATE SET "
                     + ",".join(fields)+",updated_at=excluded.updated_at",
                     (cid,evaluator,aesthetics,communication,samba,now))
+                contest_con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('presenter_results_released','0') "
+                    "ON CONFLICT(setting_key) DO UPDATE SET setting_value='0'")
                 contest_con.commit()
             return self.send_json({"ok":True,"updated_at":now})
         if path=="/api/score":
