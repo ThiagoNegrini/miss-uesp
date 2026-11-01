@@ -241,7 +241,7 @@ class Handler(SimpleHTTPRequestHandler):
         return json.loads(self.rfile.read(length).decode("utf-8"))
     def do_GET(self):
         path=urlparse(self.path).path
-        if path=="/api/health": return self.send_json({"ok":True,"service":"UESP 2027","databases":{"audition":AUDITION_DB.name,"contest":CONTEST_DB.name}})
+        if path=="/api/health": return self.send_json({"ok":True,"service":"UESP 2027","databases":{"audition":AUDITION_DB.name,"contest":CONTEST_DB.name,"agulha":AGULHA_DB.name}})
         if path=="/api/active-stage":
             with dbconn(AUDITION_DB) as con:
                 row=con.execute("SELECT setting_value FROM app_settings WHERE setting_key='active_stage'").fetchone()
@@ -589,7 +589,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({"ok":False,"error":"Informe released como verdadeiro ou falso."},400)
             with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
                 evaluators,results=agulha_result_rows(contest_con,agulha_con)
-                if data["released"] and (not evaluators or any(not x["complete"] for x in results)):
+                if data["released"] and (not evaluators or not results or any(not x["complete"] for x in results)):
                     return self.send_json({"ok":False,"error":"Conclua todas as avaliações das candidatas elegíveis antes de liberar o resultado."},400)
                 value="1" if data["released"] else "0"
                 agulha_con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('released',?) "
