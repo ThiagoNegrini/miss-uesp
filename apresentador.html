@@ -2,7 +2,7 @@
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Painel do Apresentador — MISS UESP</title>
 <link rel="stylesheet" href="assets/css/apresentador.css"></head><body>
 <header><h1>MISS UESP</h1><p>PAINEL DO APRESENTADOR • RESULTADOS OFICIAIS</p></header>
-<main><div class="toolbar"><div><strong>Participantes do Concurso</strong><div class="status" id="status">Carregando lista…</div></div><button id="resultButton" type="button" disabled>RESULTADO</button></div>
+<main><div class="toolbar"><div><strong>Participantes do Concurso</strong><div class="status" id="status" aria-live="polite">Carregando lista…</div></div><button id="resultButton" type="button" disabled>RESULTADO</button></div>
 <section class="columns" id="columns">
  <article class="category"><h2>PASSISTA</h2><div class="people" id="passista"><div class="empty">Carregando…</div></div></article>
  <article class="category"><h2>DIVA DO SAMBA (PLUS SIZE)</h2><div class="people" id="diva"><div class="empty">Carregando…</div></div></article>
@@ -12,9 +12,9 @@
 <section class="results" id="results"><h2>RESULTADO FINAL</h2><div class="winner-grid" id="winnerGrid"></div></section>
 <section class="category" style="margin-top:18px;padding:18px">
  <h2>AGULHA DE OURO • RESULTADO INDEPENDENTE</h2>
- <p class="status" id="agulhaStatus">Consultando liberação…</p>
+ <p class="status" id="agulhaStatus" aria-live="polite">Consultando liberação…</p>
  <button id="agulhaButton" type="button" disabled>AGULHA DE OURO</button>
  <div class="winner-grid" id="agulhaWinners" style="margin-top:14px"></div>
 </section>
 </main>
-<script src="assets/js/apresentador.js"></script></body></html>
+<script src="assets/js/api.js"></script><script src="assets/js/apresentador.js"></script></body></html>
