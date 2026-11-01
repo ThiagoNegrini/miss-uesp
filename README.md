@@ -33,11 +33,12 @@ Os bancos de dados são criados automaticamente na pasta do projeto:
 
 - `banco_audicao.db`
 - `banco_concurso.db`
+- `banco_agulha_ouro.db` (avaliadores, notas, apuração e liberação próprias do Agulha de Ouro)
 
 Para levar os dados atuais ao segundo notebook:
 
 1. Encerre o servidor no primeiro notebook com `Ctrl+C`.
-2. Copie os dois arquivos `.db` para a pasta do projeto no segundo notebook, substituindo os bancos vazios que possam ter sido criados.
+2. Copie todos os arquivos `.db` listados acima para a pasta do projeto no segundo notebook, substituindo os bancos vazios que possam ter sido criados.
 3. Copie também eventuais arquivos de dados/fotos que estejam na pasta do projeto.
 4. Inicie o servidor no segundo notebook.
 
@@ -61,3 +62,8 @@ As dependências externas ficam registradas em `requirements.txt`. Para reinstal
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
+
+
+## Agulha de Ouro
+
+O módulo Agulha de Ouro fica em `agulha.html` e avalia exclusivamente vestido/roupa das participantes elegíveis de Rainha do Samba e Diva do Samba (Plus Size) já incluídas no Concurso. A nota individual vai de 9,0 a 10,0 em intervalos de 0,1. A classificação soma as notas dos avaliadores próprios, com armazenamento em `banco_agulha_ouro.db`; esses dados não entram no resultado do Concurso. Em caso de empate, um avaliador pode editar uma nota já lançada e a soma é recalculada. O módulo permite imprimir seu próprio relatório final e liberar o resultado separadamente no Painel do Apresentador.
