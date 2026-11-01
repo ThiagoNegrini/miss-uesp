@@ -26,17 +26,17 @@ footer{text-align:center;color:#5b4a4d;font-size:12px;padding:20px;border-top:1p
 .navlink{align-self:center;display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;border-radius:8px;background:#c8102e;color:#fff;text-decoration:none;font-weight:750;white-space:nowrap}
 @media(max-width:900px){.category-list{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.category-list{grid-template-columns:1fr}.category{min-height:unset}.navlink{width:100%}}
 
-/* Atalhos em vidro: contraste forte sobre fundo noturno e brilho sutil ao foco. */
-.shortcuts-panel{position:relative;overflow:hidden;background:radial-gradient(ellipse at 8% 0%,#553b85 0,transparent 42%),radial-gradient(ellipse at 100% 90%,#125b76 0,transparent 38%),linear-gradient(135deg,#11162e,#18203b 58%,#121a30);border:1px solid #ffffff35;border-radius:22px;padding:clamp(18px,3vw,30px);box-shadow:0 22px 55px #10152b30,inset 0 1px #ffffff24}
-.shortcuts-panel:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(120deg,#ffffff0b,transparent 32%,#87d9ff09 74%,transparent);border-radius:inherit}
-.shortcuts-panel>*{position:relative}.shortcuts-panel h2{color:#fff;font-size:clamp(20px,2.4vw,25px);letter-spacing:.02em}.shortcuts-panel p.help{color:#c9d1e8}
-.shortcuts-panel .shortcut-card{position:relative;isolation:isolate;min-height:170px;gap:20px;padding:19px;background:linear-gradient(145deg,#ffffff18,#ffffff09);border:1px solid #dce8ff36;border-top:1px solid #e9f4ff66;border-radius:18px;box-shadow:0 12px 26px #080d1e45,inset 0 1px #ffffff25;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
-.shortcuts-panel .shortcut-card:hover{transform:translateY(-4px);border-color:#9ce4ff9c;box-shadow:0 18px 35px #050a1a70,0 0 22px #73d9ff20,inset 0 1px #ffffff48}
-.shortcuts-panel .shortcut-card b{color:#fff;font-size:16px}.shortcuts-panel .shortcut-card span{color:#cbd5ed;font-size:13px;line-height:1.6}
-.shortcuts-panel .navlink{align-self:flex-start;background:linear-gradient(135deg,#5278ff,#37b6df);border:1px solid #ffffff38;border-radius:10px;box-shadow:0 6px 18px #172b6c70;white-space:normal;text-align:center;transition:filter .15s,transform .15s}
-.shortcuts-panel .navlink:hover{filter:brightness(1.13);transform:translateY(-1px)}.shortcuts-panel .shortcut-card>div:last-child{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
-.shortcuts-panel .agulha-shortcut{background:linear-gradient(145deg,#efb43b26,#ffffff0b 58%,#7a4fb325);border-color:#f3c85d73;box-shadow:0 12px 30px #080d1e50,0 0 24px #f5bc3d12,inset 0 1px #fff6d342}
-.shortcuts-panel .agulha-shortcut b{color:#ffe19a}.shortcuts-panel .agulha-shortcut .navlink:first-child{background:linear-gradient(135deg,#b968d6,#6c62e9)}.shortcuts-panel .agulha-shortcut .navlink:last-child{background:linear-gradient(135deg,#d8a12b,#e56d52)}
+/* Atalhos Glass em vermelho e branco: brilho suave, transparência e contraste legível. */
+.shortcuts-panel{position:relative;overflow:hidden;background:radial-gradient(ellipse at 8% 0%,#c8102e20 0,transparent 44%),radial-gradient(ellipse at 100% 100%,#ef64751c 0,transparent 42%),linear-gradient(135deg,#fff,#fff7f8 56%,#fff);border:1px solid #e8a5af;border-radius:22px;padding:clamp(18px,3vw,30px);box-shadow:0 20px 48px #9d16301c,inset 0 1px #ffffff}
+.shortcuts-panel:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(120deg,#ffffffb8,transparent 34%,#c8102e08 74%,#ffffff70);border-radius:inherit}
+.shortcuts-panel>*{position:relative}.shortcuts-panel h2{color:#a50d25;font-size:clamp(20px,2.4vw,25px);letter-spacing:.02em}.shortcuts-panel p.help{color:#684c51}
+.shortcuts-panel .shortcut-card{position:relative;isolation:isolate;min-height:170px;gap:20px;padding:19px;background:linear-gradient(145deg,#ffffffd9,#fff9faad);border:1px solid #d98b97a8;border-top:1px solid #ffffff;border-radius:18px;box-shadow:0 12px 26px #94142a17,inset 0 1px #ffffff;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.shortcuts-panel .shortcut-card:hover{transform:translateY(-4px);border-color:#c8102e9c;box-shadow:0 18px 35px #94142a24,0 0 22px #c8102e17,inset 0 1px #ffffff}
+.shortcuts-panel .shortcut-card b{color:#8f1024;font-size:16px}.shortcuts-panel .shortcut-card span{color:#654f53;font-size:13px;line-height:1.6}
+.shortcuts-panel .navlink{align-self:flex-start;background:linear-gradient(135deg,#c8102e,#e04458);border:1px solid #a80c25;border-radius:10px;box-shadow:0 6px 18px #9d16302b;white-space:normal;text-align:center;transition:filter .15s,transform .15s}
+.shortcuts-panel .navlink:hover{filter:brightness(1.08);transform:translateY(-1px)}.shortcuts-panel .shortcut-card>div:last-child{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.shortcuts-panel .agulha-shortcut{background:linear-gradient(145deg,#fff5f6ed,#ffffffba 58%,#fce7ea);border-color:#c8102e80;box-shadow:0 12px 30px #94142a20,0 0 24px #c8102e10,inset 0 1px #fff}
+.shortcuts-panel .agulha-shortcut b{color:#a50d25}.shortcuts-panel .agulha-shortcut .navlink:first-child{background:linear-gradient(135deg,#a50d25,#d72840)}.shortcuts-panel .agulha-shortcut .navlink:last-child{background:linear-gradient(135deg,#fff,#fff0f2);color:#a50d25;border-color:#c8102e;box-shadow:0 5px 16px #9d16301a}
 @media(max-width:600px){.shortcuts-panel .shortcut-card{min-height:unset}.shortcuts-panel .shortcut-card>div:last-child{width:100%}.shortcuts-panel .navlink{width:100%}}
 </style></head>
 <body>
