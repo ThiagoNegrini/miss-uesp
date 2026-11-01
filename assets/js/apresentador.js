@@ -7,8 +7,7 @@ let resultsOpen=false;
 let renderedWinnersSignature='';
 async function refreshAgulha(){
  try{
-  const r=await fetch('/api/agulha/presenter-data',{cache:'no-store'}),j=await r.json();
-  if(!r.ok||j.ok===false)throw Error(j.error||'Falha ao consultar o Agulha de Ouro.');
+  const j=await requestJSON('/api/agulha/presenter-data');
   $('agulhaButton').disabled=!j.released;
   $('agulhaStatus').textContent=j.released?'Vencedora do Agulha de Ouro liberada independentemente do Concurso. Clique para revelar.':'Resultado geral do Agulha de Ouro ainda não liberado.';
   $('agulhaButton').onclick=()=>{if(!j.released)return;$('agulhaWinners').innerHTML=(j.winners||[]).map(w=>'<article class="winner"><div>'+(w.photo?'<img src="'+esc(w.photo)+'" alt="">':'')+'</div><div><div class="position">AGULHA DE OURO</div><h3>'+esc(w.name)+'</h3><div>'+esc(w.category)+'</div></div></article>').join('')||'<div class="empty">Não há resultado publicado.</div>';};
@@ -16,8 +15,7 @@ async function refreshAgulha(){
 }
 async function refresh(){
  try{
-  const r=await fetch('/api/presenter-data',{cache:'no-store'}),j=await r.json();
-  if(!r.ok||j.ok===false)throw Error(j.error||'Falha ao consultar o servidor.');
+  const j=await requestJSON('/api/presenter-data');
   // Depois de abrir o resultado, congela a interface para a sincronização periódica não fechar os detalhes.
   if(resultsOpen)return;
   currentData=j;renderParticipants();renderRelease();
