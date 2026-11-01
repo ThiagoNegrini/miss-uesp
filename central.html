@@ -52,14 +52,14 @@
  <h2>Cadastro de avaliadores por etapa</h2>
  <p class="help">Cadastros independentes. Informe um nome por linha; a lista será usada como seleção na tela Avaliador e determina o número de avaliadores exibido nos resultados.</p>
  <div class="actions"><label for="rosterStage">Etapa:</label><select id="rosterStage"><option value="AUDICAO">AUDIÇÃO</option><option value="CONCURSO">CONCURSO</option></select><button id="loadRoster" class="secondary">Carregar lista</button><button id="saveRoster">Salvar avaliadores</button></div>
- <textarea id="rosterNames" rows="5" style="width:100%;padding:10px;border:1px solid #e5b7be;border-radius:8px" placeholder="Nome de cada avaliador em uma linha"></textarea><div id="rosterStatus" class="status">Carregue ou edite a lista de avaliadores.</div>
+ <textarea id="rosterNames" rows="5" style="width:100%;padding:10px;border:1px solid #e5b7be;border-radius:8px" placeholder="Nome de cada avaliador em uma linha"></textarea><div id="rosterStatus" class="status" aria-live="polite">Carregue ou edite a lista de avaliadores.</div>
  </div>
  <div class="card">
   <h2>1. Importar lista do Excel</h2>
   <p class="help">Selecione o arquivo .xlsx. A central lê a primeira aba e considera a coluna A como categoria e a coluna B como nome, começando após a linha de cabeçalho.</p>
   <input id="file" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
   <div class="actions"><button id="importBtn" disabled>Importar candidatos</button><button id="refreshBtn" class="secondary">Atualizar painel</button></div>
-  <div id="importStatus" class="status">Aguardando arquivo Excel.</div>
+  <div id="importStatus" class="status" aria-live="polite">Aguardando arquivo Excel.</div>
  </div>
 
 </section>
@@ -74,7 +74,7 @@
   <button class="secondary" id="exportBtn">Exportar lista CSV</button>
  </div>
  <div class="tablewrap"><table><thead><tr><th>#</th><th>Categoria</th><th>Nome do candidato</th><th>Chegada</th><th>Horário</th><th>Dispositivo</th></tr></thead><tbody id="rows"><tr><td colspan="6">Nenhum candidato importado nesta sessão.</td></tr></tbody></table></div>
- <div id="dbStatus" class="status">Conectando ao banco local…</div>
+ <div id="dbStatus" class="status" aria-live="polite">Conectando ao banco local…</div>
 </section>
 <section class="card" style="margin-top:16px;border-color:#c8102e">
  <h2>4. Limpar dados do sistema</h2>
@@ -88,4 +88,4 @@
  <div id="clearContestStatus" class="status">A exclusão só será executada após confirmação.</div>
 </section>
 </main><footer>Criado por: Thiago A Negrini® • Central de Controle UESP 2026</footer>
-<script src="assets/js/central.js"></script></body></html>
+<script src="assets/js/api.js"></script><script src="assets/js/central.js"></script></body></html>
