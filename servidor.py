@@ -11,6 +11,7 @@ from datetime import datetime
 HERE=Path(__file__).resolve().parent
 AUDITION_DB=HERE/"banco_audicao.db"
 CONTEST_DB=HERE/"banco_concurso.db"
+AGULHA_DB=HERE/"banco_agulha_ouro.db"
 CATEGORIES=["Rainha do Samba","Passista de Ouro","Diva do Samba (Plus Size)"]
 
 def dbconn(database=AUDITION_DB):
@@ -54,6 +55,15 @@ def dbconn(database=AUDITION_DB):
           id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL, evaluator TEXT NOT NULL,
           aesthetics_sympathy REAL, communication_elegance REAL, samba REAL, updated_at TEXT NOT NULL,
           UNIQUE(candidate_id,evaluator))""")
+    elif target == AGULHA_DB.resolve():
+        con.execute("""CREATE TABLE IF NOT EXISTS evaluator_roster (
+          position INTEGER PRIMARY KEY, evaluator TEXT NOT NULL UNIQUE)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS agulha_scores (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, candidate_id INTEGER NOT NULL,
+          evaluator TEXT NOT NULL, score REAL NOT NULL, updated_at TEXT NOT NULL,
+          UNIQUE(candidate_id,evaluator))""")
+        con.execute("""CREATE TABLE IF NOT EXISTS app_settings (
+          setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL)""")
     else:
         con.close()
         raise ValueError("Banco de dados não reconhecido: "+str(target))
@@ -188,6 +198,49 @@ def contest_result_rows(audition_con, contest_con):
     output.sort(key=lambda x:(x["category"].casefold(),x["title"] is None,x["title"] or "",x["name"].casefold()))
     return output
 
+def agulha_result_rows(contest_con, agulha_con):
+    candidates=[c for c in contest_participant_rows(contest_con)
+        if c["category"].strip().casefold() in ("rainha do samba","diva do samba (plus size)")]
+    evaluators=[r["evaluator"] for r in agulha_con.execute(
+        "SELECT evaluator FROM evaluator_roster ORDER BY position").fetchall()]
+    rows=agulha_con.execute("SELECT candidate_id,evaluator,score FROM agulha_scores").fetchall()
+    by={}
+    for r in rows: by.setdefault(r["candidate_id"],{})[r["evaluator"]]=r["score"]
+    output=[]
+    for c in candidates:
+        vals=by.get(c["id"],{})
+        total=round(sum(vals.values()),1) if vals else None
+        complete=sum(1 for ev in evaluators if ev in vals)
+        output.append({"id":c["id"],"category":c["category"],"name":c["name"],
+            "artistic_name":c.get("artistic_name") or "","photo":c.get("photo") or "",
+            "scores":{ev:vals.get(ev) for ev in evaluators},"total":total,
+            "complete_evaluators":complete,"expected_evaluators":len(evaluators),
+            "complete":bool(evaluators) and complete==len(evaluators),
+            "status":"Completa" if evaluators and complete==len(evaluators) else ("Parcial" if complete else "Aguardando notas")})
+    # A classificação é única para as candidatas elegíveis das duas categorias.
+    # Notas parciais entram no total provisório; a liberação exige todas completas.
+    group=[x for x in output if x["total"] is not None]
+    group.sort(key=lambda x:(-x["total"],x["name"].casefold(),x["category"].casefold()))
+    position=0; previous=None
+    for i,item in enumerate(group,1):
+        if previous is None or item["total"] != previous: position=i
+        item["position"]=position
+        previous=item["total"]
+    top_score=group[0]["total"] if group else None
+    top_count=sum(1 for item in group if item["total"]==top_score) if group else 0
+    for item in group:
+        item["tied_for_first"]=item["total"]==top_score and top_count>1
+    output.sort(key=lambda x:(x.get("position",999),x["category"].casefold(),x["name"].casefold()))
+    return evaluators,output
+
+def agulha_release_valid(evaluators,results):
+    if not evaluators or not results or any(not item["complete"] for item in results):
+        return False
+    if any(item.get("tied_for_first") for item in results):
+        return False
+    return sum(1 for item in results
+        if item.get("position")==1 and item["complete"])==1
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self,*a,**kw): super().__init__(*a,directory=str(HERE),**kw)
     def send_json(self,data,status=200):
@@ -201,7 +254,7 @@ class Handler(SimpleHTTPRequestHandler):
         return json.loads(self.rfile.read(length).decode("utf-8"))
     def do_GET(self):
         path=urlparse(self.path).path
-        if path=="/api/health": return self.send_json({"ok":True,"service":"UESP 2027","databases":{"audition":AUDITION_DB.name,"contest":CONTEST_DB.name}})
+        if path=="/api/health": return self.send_json({"ok":True,"service":"UESP 2027","databases":{"audition":AUDITION_DB.name,"contest":CONTEST_DB.name,"agulha":AGULHA_DB.name}})
         if path=="/api/active-stage":
             with dbconn(AUDITION_DB) as con:
                 row=con.execute("SELECT setting_value FROM app_settings WHERE setting_key='active_stage'").fetchone()
@@ -336,6 +389,25 @@ class Handler(SimpleHTTPRequestHandler):
                             winners.append({"id":item["id"],"category":item["category"],"name":item["name"],"artistic_name":item.get("artistic_name") or "","photo":item.get("photo") or "","position":label})
                     payload["winners"]=winners
             return self.send_json(payload)
+        if path=="/api/agulha/data":
+            with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
+                evaluators,results=agulha_result_rows(contest_con,agulha_con)
+                setting=agulha_con.execute("SELECT setting_value FROM app_settings WHERE setting_key='released'").fetchone()
+            released=bool(setting and setting["setting_value"]=="1") and agulha_release_valid(evaluators,results)
+            return self.send_json({"ok":True,"evaluators":evaluators,"results":results,"released":released})
+        if path=="/api/agulha/presenter-data":
+            with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
+                evaluators,results=agulha_result_rows(contest_con,agulha_con)
+                setting=agulha_con.execute("SELECT setting_value FROM app_settings WHERE setting_key='released'").fetchone()
+                released=bool(setting and setting["setting_value"]=="1") and agulha_release_valid(evaluators,results)
+                winners=[]
+                if released:
+                    group=[x for x in results if x.get("position")==1 and x["complete"]]
+                    if len(group)==1:
+                        x=group[0]
+                        winners.append({"id":x["id"],"category":x["category"],"name":x["name"],
+                            "artistic_name":x["artistic_name"],"photo":x["photo"],"position":"Agulha de Ouro"})
+            return self.send_json({"ok":True,"released":released,"winners":winners})
         if path=="/api/results":
             with dbconn() as con:
                 cs=con.execute("""
@@ -480,6 +552,76 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({"ok":True,"published":len(published),"migrated":migrated,"published_at":now,"message":"Resultado publicado e classificados migrados para o banco independente do Concurso."})
             except Exception as e:
                 return self.send_json({"ok":False,"error":"Não foi possível disponibilizar os resultados da Audição: "+str(e)},500)
+        if path=="/api/agulha/evaluators":
+            try: data=self.read_json()
+            except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
+            names=data.get("evaluators",[])
+            if not isinstance(names,list): return self.send_json({"ok":False,"error":"Informe uma lista de avaliadores."},400)
+            cleaned=[]; seen=set()
+            for value in names:
+                name=" ".join(str(value or "").split())
+                if not name: continue
+                if len(name)>80: return self.send_json({"ok":False,"error":"Cada nome pode ter até 80 caracteres."},400)
+                if name.casefold() not in seen: cleaned.append(name); seen.add(name.casefold())
+            if len(cleaned)<1: return self.send_json({"ok":False,"error":"Cadastre pelo menos um avaliador do Agulha de Ouro."},400)
+            if len(cleaned)>100: return self.send_json({"ok":False,"error":"Máximo de 100 avaliadores."},400)
+            with dbconn(AGULHA_DB) as con:
+                con.execute("DELETE FROM evaluator_roster")
+                con.executemany("INSERT INTO evaluator_roster(position,evaluator) VALUES(?,?)",[(i,n) for i,n in enumerate(cleaned,1)])
+                con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('released','0') ON CONFLICT(setting_key) DO UPDATE SET setting_value='0'")
+                con.commit()
+            return self.send_json({"ok":True,"evaluators":cleaned})
+        if path=="/api/agulha/clear":
+            try: data=self.read_json()
+            except Exception as e: return self.send_json({"ok":False,"error":"Confirmação inválida: "+str(e)},400)
+            if not isinstance(data,dict) or data.get("confirm") is not True:
+                return self.send_json({"ok":False,"error":"A limpeza exige confirmação explícita."},400)
+            with dbconn(AGULHA_DB) as con:
+                deleted_scores=con.execute("SELECT COUNT(*) FROM agulha_scores").fetchone()[0]
+                deleted_evaluators=con.execute("SELECT COUNT(*) FROM evaluator_roster").fetchone()[0]
+                con.execute("DELETE FROM agulha_scores")
+                con.execute("DELETE FROM evaluator_roster")
+                con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('released','0') ON CONFLICT(setting_key) DO UPDATE SET setting_value='0'")
+                con.commit()
+            return self.send_json({"ok":True,"deleted_scores":deleted_scores,"deleted_evaluators":deleted_evaluators})
+        if path=="/api/agulha/score":
+            try: data=self.read_json()
+            except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
+            cid=data.get("candidate_id"); evaluator=" ".join(str(data.get("evaluator","")).split())
+            value=data.get("score")
+            if not isinstance(cid,int): return self.send_json({"ok":False,"error":"Candidata inválida."},400)
+            try: score=float(value)
+            except (TypeError,ValueError): return self.send_json({"ok":False,"error":"Informe nota entre 9,0 e 10,0."},400)
+            if not 9<=score<=10 or abs(round(score*10)-score*10)>1e-7:
+                return self.send_json({"ok":False,"error":"Notas de 9,0 a 10,0 em intervalos de 0,1."},400)
+            with dbconn(CONTEST_DB) as contest_con:
+                eligible={c["id"]:c for c in contest_participant_rows(contest_con)
+                    if c["category"].strip().casefold() in ("rainha do samba","diva do samba (plus size)")}
+            if cid not in eligible: return self.send_json({"ok":False,"error":"Participante não elegível ao Agulha de Ouro."},400)
+            now=datetime.now().astimezone().isoformat(timespec="seconds")
+            with dbconn(AGULHA_DB) as con:
+                if not con.execute("SELECT 1 FROM evaluator_roster WHERE evaluator=?",(evaluator,)).fetchone():
+                    return self.send_json({"ok":False,"error":"Avaliador não cadastrado no Agulha de Ouro."},400)
+                con.execute("INSERT INTO agulha_scores(candidate_id,evaluator,score,updated_at) VALUES(?,?,?,?) "
+                    "ON CONFLICT(candidate_id,evaluator) DO UPDATE SET score=excluded.score,updated_at=excluded.updated_at",
+                    (cid,evaluator,score,now))
+                con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('released','0') ON CONFLICT(setting_key) DO UPDATE SET setting_value='0'")
+                con.commit()
+            return self.send_json({"ok":True,"updated_at":now})
+        if path=="/api/agulha/publication":
+            try: data=self.read_json()
+            except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
+            if not isinstance(data,dict) or not isinstance(data.get("released"),bool):
+                return self.send_json({"ok":False,"error":"Informe released como verdadeiro ou falso."},400)
+            with dbconn(CONTEST_DB) as contest_con, dbconn(AGULHA_DB) as agulha_con:
+                evaluators,results=agulha_result_rows(contest_con,agulha_con)
+                if data["released"] and not agulha_release_valid(evaluators,results):
+                    return self.send_json({"ok":False,"error":"Conclua todas as avaliações e resolva o empate geral para liberar uma única vencedora do Agulha de Ouro."},400)
+                value="1" if data["released"] else "0"
+                agulha_con.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES('released',?) "
+                    "ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value",(value,))
+                agulha_con.commit()
+            return self.send_json({"ok":True,"released":data["released"]})
         if path=="/api/contest-score":
             try: data=self.read_json()
             except Exception as e: return self.send_json({"ok":False,"error":"Dados inválidos: "+str(e)},400)
@@ -643,6 +785,7 @@ def init_contest_db():
 if __name__=="__main__":
     with dbconn(AUDITION_DB): pass
     init_contest_db()
+    with dbconn(AGULHA_DB): pass
     try:
         with dbconn(AUDITION_DB) as audition_con, dbconn(CONTEST_DB) as contest_con:
             if audition_con.execute("SELECT COUNT(*) FROM audition_result_publication").fetchone()[0]: migrate_published_contest(audition_con,contest_con)

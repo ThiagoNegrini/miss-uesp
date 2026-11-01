@@ -20,7 +20,7 @@ button{border:0;border-radius:9px;padding:12px 20px;background:var(--red);color:
 @media(max-width:760px){.columns{grid-template-columns:1fr}.winner-grid{grid-template-columns:1fr}.winner-detail img,.winner-detail .no-photo{width:86px;height:108px}}
 @media print{body{background:#fff}header{print-color-adjust:exact}.toolbar button{display:none}.category,.winner{break-inside:avoid;box-shadow:none}.results{display:block!important}}
 </style></head><body>
-<header><h1>MISS UESP</h1><p>PAINEL DO APRESENTADOR • CONCURSO</p></header>
+<header><h1>MISS UESP</h1><p>PAINEL DO APRESENTADOR • RESULTADOS OFICIAIS</p></header>
 <main><div class="toolbar"><div><strong>Participantes do Concurso</strong><div class="status" id="status">Carregando lista…</div></div><button id="resultButton" type="button" disabled>RESULTADO</button></div>
 <section class="columns" id="columns">
  <article class="category"><h2>PASSISTA</h2><div class="people" id="passista"><div class="empty">Carregando…</div></div></article>
@@ -29,6 +29,12 @@ button{border:0;border-radius:9px;padding:12px 20px;background:var(--red);color:
 </section>
 <div class="locked" id="locked">O resultado final ainda não foi liberado pela organização.</div>
 <section class="results" id="results"><h2>RESULTADO FINAL</h2><div class="winner-grid" id="winnerGrid"></div></section>
+<section class="category" style="margin-top:18px;padding:18px">
+ <h2>AGULHA DE OURO • RESULTADO INDEPENDENTE</h2>
+ <p class="status" id="agulhaStatus">Consultando liberação…</p>
+ <button id="agulhaButton" type="button" disabled>AGULHA DE OURO</button>
+ <div class="winner-grid" id="agulhaWinners" style="margin-top:14px"></div>
+</section>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -37,6 +43,15 @@ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLo
 let currentData={released:false,participants:[],winners:[]};
 let resultsOpen=false;
 let renderedWinnersSignature='';
+async function refreshAgulha(){
+ try{
+  const r=await fetch('/api/agulha/presenter-data',{cache:'no-store'}),j=await r.json();
+  if(!r.ok||j.ok===false)throw Error(j.error||'Falha ao consultar o Agulha de Ouro.');
+  $('agulhaButton').disabled=!j.released;
+  $('agulhaStatus').textContent=j.released?'Vencedora do Agulha de Ouro liberada independentemente do Concurso. Clique para revelar.':'Resultado geral do Agulha de Ouro ainda não liberado.';
+  $('agulhaButton').onclick=()=>{if(!j.released)return;$('agulhaWinners').innerHTML=(j.winners||[]).map(w=>'<article class="winner"><div>'+(w.photo?'<img src="'+esc(w.photo)+'" alt="">':'')+'</div><div><div class="position">AGULHA DE OURO</div><h3>'+esc(w.name)+'</h3><div>'+esc(w.category)+'</div></div></article>').join('')||'<div class="empty">Não há resultado publicado.</div>';};
+ }catch(e){$('agulhaStatus').textContent='Não foi possível carregar o Agulha de Ouro: '+e.message}
+}
 async function refresh(){
  try{
   const r=await fetch('/api/presenter-data',{cache:'no-store'}),j=await r.json();
@@ -103,5 +118,5 @@ function toggleWinner(index){
  button.setAttribute('aria-expanded',String(opening));
 }
 $('resultButton').addEventListener('click',showResults);
-refresh();setInterval(refresh,5000);
+refresh();refreshAgulha();setInterval(refresh,5000);setInterval(refreshAgulha,3000);
 </script></body></html>
