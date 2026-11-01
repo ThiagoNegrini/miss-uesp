@@ -48,7 +48,7 @@ async function refreshAgulha(){
   const r=await fetch('/api/agulha/presenter-data',{cache:'no-store'}),j=await r.json();
   if(!r.ok||j.ok===false)throw Error(j.error||'Falha ao consultar o Agulha de Ouro.');
   $('agulhaButton').disabled=!j.released;
-  $('agulhaStatus').textContent=j.released?'Resultado Agulha de Ouro liberado independentemente do Concurso. Clique para revelar.':'Resultado Agulha de Ouro ainda não liberado.';
+  $('agulhaStatus').textContent=j.released?'Vencedora do Agulha de Ouro liberada independentemente do Concurso. Clique para revelar.':'Resultado geral do Agulha de Ouro ainda não liberado.';
   $('agulhaButton').onclick=()=>{if(!j.released)return;$('agulhaWinners').innerHTML=(j.winners||[]).map(w=>'<article class="winner"><div>'+(w.photo?'<img src="'+esc(w.photo)+'" alt="">':'')+'</div><div><div class="position">AGULHA DE OURO</div><h3>'+esc(w.name)+'</h3><div>'+esc(w.category)+'</div></div></article>').join('')||'<div class="empty">Não há resultado publicado.</div>';};
  }catch(e){$('agulhaStatus').textContent='Não foi possível carregar o Agulha de Ouro: '+e.message}
 }
